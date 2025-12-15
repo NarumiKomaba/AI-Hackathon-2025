@@ -1,60 +1,96 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 type Props = {
   children: ReactNode;
+  bgType?: "guild" | "guildCounter";
 };
 
-export default function ProjectQuestLayout({ children }: Props) {
+export default function ProjectQuestLayout({
+  children,
+  bgType = "guild",
+}: Props) {
   const pathname = usePathname();
 
   const navItems = [
-    { href: "/board", label: "掲示板" },
-    { href: "/quests", label: "クエスト管理" },
-    { href: "/status", label: "ステータス" },
+    {
+      href: "/board",
+      normal: "/images/アセット 9@144x.png",
+      active: "/images/掲示板@144x.png",
+    },
+    {
+      href: "/quests",
+      normal: "/images/クエスト管理@144x.png",
+      active: "/images/アセット 10@144x.png",
+    },
+    {
+      href: "/status",
+      normal: "/images/ステータス@144x.png",
+      active: "/images/アセット 11@144x.png",
+    },
   ];
 
+  const bgImage =
+    bgType === "guild"
+      ? "/images/thumbnail_guild.jpg"
+      : "/images/thumbnail_guildCounter.jpg";
+
   return (
-    <div className="min-h-screen bg-gray-300 flex items-center justify-center">
-      {/* 1440 x 720 キャンバス */}
-      <div className="w-[1600px] h-[850px] bg-gray-200 flex flex-col">
-        {/* ヘッダー（共通） */}
-        <header className="bg-white shadow-sm">
-          <div className="flex items-center justify-between px-6 py-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-600 rounded-sm border border-yellow-300" />
-              <span className="text-3xl font-serif font-bold text-gray-900">
-                Project Quest
-              </span>
-            </div>
+    <div
+      className="min-h-screen w-full bg-cover bg-center flex flex-col items-center pt-6"
+      style={{ backgroundImage: `url(${bgImage})` }}
+    >
+      {/* ===================== */}
+      {/*  ヘッダー（巻物より上） */}
+      {/* ===================== */}
+      <header className="w-full max-w-[1600px] flex items-center justify-between px-6 mb-4">
+        {/* 左上の大きいロゴ（文字含む画像） */}
+        <div className="relative w-64 h-20">
+          <Image
+            src="/images/Group 53.png"
+            alt="Project Quest Logo"
+            fill
+            className="object-contain"
+          />
+        </div>
 
-            <nav className="flex gap-4">
-              {navItems.map((item) => {
-                const active = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={
-                      "px-6 py-2 rounded-full text-sm transition " +
-                      (active
-                        ? "bg-black text-white"
-                        : "bg-gray-300 text-gray-700 hover:bg-gray-400")
-                    }
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-        </header>
+        {/* 右上のボタン */}
+        <nav className="flex gap-4">
+          {navItems.map((item) => {
+            const active = pathname === item.href;
+            const src = active ? item.active : item.normal;
 
-        {/* 各画面の中身 */}
-        <main className="flex-1 overflow-hidden">{children}</main>
+            return (
+              <Link key={item.href} href={item.href} className="relative block">
+                <div className="relative w-40 h-12">
+                  <Image src={src} alt="" fill className="object-contain" />
+                </div>
+              </Link>
+            );
+          })}
+        </nav>
+      </header>
+
+      {/* ===================== */}
+      {/* 巻物ボード（背景ボード） */}
+      {/* ===================== */}
+      <div className="relative w-[1600px] h-[820px]">
+        {/* 巻物（背景ボード） */}
+        <Image
+          src="/images/背景ボード@144x 1.png"
+          alt="背景ボード"
+          fill
+          className="object-contain"
+        />
+
+        {/* 中身（children） */}
+        <main className="absolute inset-0 px-16 py-14 overflow-auto">
+          {children}
+        </main>
       </div>
     </div>
   );
