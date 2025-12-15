@@ -14,7 +14,7 @@ export default function Home() {
       <div className="relative w-full max-w-5xl aspect-[16/9] flex items-center justify-center">
         {/* 背景ボード（巻物） */}
         <Image
-          src="/images/背景ボード@144x 1.png"
+          src="/images/back.png"
           alt="背景ボード"
           fill
           priority
@@ -56,7 +56,7 @@ export default function Home() {
             <a href="/board" className="block">
               <div className="relative w-40 h-12 md:w-48 md:h-14">
                 <Image
-                  src="/images/アセット 9@144x.png"
+                  src="/images/board-dark.png"
                   alt="掲示板"
                   fill
                   className="object-contain"
@@ -68,7 +68,7 @@ export default function Home() {
             <a href="/quests" className="block">
               <div className="relative w-40 h-12 md:w-48 md:h-14">
                 <Image
-                  src="/images/クエスト管理@144x.png"
+                  src="/images/quest-dark.png"
                   alt="クエスト管理"
                   fill
                   className="object-contain"
@@ -80,7 +80,7 @@ export default function Home() {
             <a href="/status" className="block">
               <div className="relative w-40 h-12 md:w-48 md:h-14">
                 <Image
-                  src="/images/ステータス@144x.png"
+                  src="/images/status-dark.png"
                   alt="ステータス"
                   fill
                   className="object-contain"

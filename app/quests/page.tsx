@@ -213,7 +213,7 @@ export default function QuestManagementPage() {
         <aside className="relative w-80 flex-shrink-0 overflow-visible">
           <div className="pointer-events-none absolute top-[-12px] bottom-[-12px] left-[2px] right-[2px]">
             <Image
-              src="/images/メニュー背景@144x 1.png"
+              src="/images/blue-back.png"
               alt="メニュー背景"
               fill
               className="object-fill"
@@ -967,7 +967,7 @@ function TaskCard({
         {task.status === "完了" && (
           <div className="absolute right-1 top-6 w-28 h-28 rotate-[10deg]">
             <Image
-              src="/images/完了スタンプ@144x.png"
+              src="/images/complete.png"
               alt="完了"
               fill
               className="object-contain"

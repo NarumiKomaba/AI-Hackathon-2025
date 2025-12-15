@@ -192,7 +192,7 @@ export default function BoardPage() {
         {/* 青いメニュー背景：上下だけちょっとはみ出させる */}
         <div className="pointer-events-none absolute top-[-12px] bottom-[-12px] left-[2px] right-[2px]">
           <Image
-            src="/images/メニュー背景@144x 1.png"
+            src="/images/blue-back.png"
             alt="メニュー背景"
             fill
             className="object-fill"

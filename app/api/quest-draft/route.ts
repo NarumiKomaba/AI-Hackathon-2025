@@ -3,10 +3,27 @@ import { VertexAI } from "@google-cloud/vertexai";
 import { adminBucket, adminDb } from "@/lib/firebaseAdmin";
 import { v4 as uuidv4 } from "uuid";
 
-const vertex = new VertexAI({
-  project: process.env.GCP_PROJECT_ID!,
-  location: process.env.GCP_LOCATION!,
-});
+export const dynamic = "force-dynamic"; // 保険（なくてもOKだが推奨）
+
+function getVertex() {
+  const project =
+    process.env.GCP_PROJECT_ID ||
+    process.env.GOOGLE_CLOUD_PROJECT ||
+    process.env.GCLOUD_PROJECT;
+
+  const location =
+    process.env.GCP_LOCATION ||
+    process.env.VERTEX_LOCATION ||
+    "asia-northeast1";
+
+  if (!project) {
+    throw new Error(
+      "GCP project id is missing. Set GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT."
+    );
+  }
+
+  return new VertexAI({ project, location });
+}
 
 export async function POST(req: Request) {
   try {
@@ -66,17 +83,12 @@ export async function POST(req: Request) {
       fileName: sourceFiles[0].originalName,
     });
 
-    const model = vertex.getGenerativeModel({
-      model: "gemini-2.5-flash",
-    });
+    // ✅ ここで初期化（ビルド時に評価されない）
+    const vertex = getVertex();
+    const model = vertex.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [...fileParts, { text: prompt }],
-        },
-      ],
+      contents: [{ role: "user", parts: [...fileParts, { text: prompt }] }],
     });
 
     const text =
@@ -91,6 +103,7 @@ export async function POST(req: Request) {
     );
   }
 }
+
 
 function makePrompt(args: {
   fileName: string;

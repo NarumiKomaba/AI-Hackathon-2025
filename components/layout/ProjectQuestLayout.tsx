@@ -19,18 +19,18 @@ export default function ProjectQuestLayout({
   const navItems = [
     {
       href: "/board",
-      normal: "/images/アセット 9@144x.png",
-      active: "/images/掲示板@144x.png",
+      normal: "/images/board-dark.png",
+      active: "/images/board-red.png",
     },
     {
       href: "/quests",
-      normal: "/images/クエスト管理@144x.png",
-      active: "/images/アセット 10@144x.png",
+      normal: "/images/quest-dark.png",
+      active: "/images/quest-red.png",
     },
     {
       href: "/status",
-      normal: "/images/ステータス@144x.png",
-      active: "/images/アセット 11@144x.png",
+      normal: "/images/status-dark.png",
+      active: "/images/status-red.png",
     },
   ];
 
@@ -81,7 +81,7 @@ export default function ProjectQuestLayout({
       <div className="relative w-[1600px] h-[820px]">
         {/* 巻物（背景ボード） */}
         <Image
-          src="/images/背景ボード@144x 1.png"
+          src="/images/back.png"
           alt="背景ボード"
           fill
           className="object-contain"
