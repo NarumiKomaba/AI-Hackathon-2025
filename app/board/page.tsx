@@ -1,10 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import ProjectQuestLayout from "@/components/layout/ProjectQuestLayout";
 
 type BoardQuestStatus = "参加中" | "募集中";
+
+type PartySlot = {
+  id: string;
+  role: string;
+  name: string;
+  isYou?: boolean;
+  filled: boolean;
+};
 
 type BoardQuest = {
   id: string;
@@ -21,14 +30,6 @@ type BoardQuest = {
   partySlots: PartySlot[];
 };
 
-type PartySlot = {
-  id: string;
-  role: string;
-  name: string;
-  isYou?: boolean;
-  filled: boolean;
-};
-
 const MOCK_QUESTS: BoardQuest[] = [
   {
     id: "core-system",
@@ -43,7 +44,7 @@ const MOCK_QUESTS: BoardQuest[] = [
       "移行リハーサルを実施し、致命的な不具合が残っていない状態にする",
     ],
     deliverables: [
-      "要件定義書・基本設計書一式（立文書スタイルの魔導書）",
+      "要件定義書・基本設計書一式（古文書スタイルの魔導書）",
       "総合テスト結果レポート（試験のログ）",
       "移行計画書・手順書（転送の儀式書）",
     ],
@@ -95,12 +96,7 @@ const MOCK_QUESTS: BoardQuest[] = [
     ],
     expGains: ["UI 設計 EXP +2", "ユーザビリティ EXP +2"],
     partySlots: [
-      {
-        id: "slot-1",
-        role: "勇者",
-        name: "募集中",
-        filled: false,
-      },
+      { id: "slot-1", role: "勇者", name: "募集中", filled: false },
       { id: "slot-2", role: "デザイナー", name: "募集中", filled: false },
       { id: "slot-3", role: "フロントエンド", name: "募集中", filled: false },
       { id: "slot-4", role: "営業代表", name: "募集中", filled: false },
@@ -144,8 +140,9 @@ export default function BoardPage() {
   const router = useRouter();
   const [quests, setQuests] = useState<BoardQuest[]>(MOCK_QUESTS);
   const [selectedId, setSelectedId] = useState<string>(MOCK_QUESTS[0].id);
-
   const selected = quests.find((q) => q.id === selectedId)!;
+  const partyScrollRef = useRef<HTMLDivElement | null>(null);
+  const [showPartyArrow, setShowPartyArrow] = useState(false);
 
   const handleJoin = () => {
     setQuests((prev) =>
@@ -153,7 +150,6 @@ export default function BoardPage() {
         if (q.id !== selected.id) return q;
         if (q.status === "参加中") return q;
 
-        // 空きスロットに「勇者 駒場（あなた）」を追加するイメージ
         const newSlots = [...q.partySlots];
         const emptyIndex = newSlots.findIndex((s) => !s.filled);
         if (emptyIndex >= 0) {
@@ -175,149 +171,222 @@ export default function BoardPage() {
     );
   };
 
+  useEffect(() => {
+    const el = partyScrollRef.current;
+    if (!el) return;
+
+    const check = () => {
+      setShowPartyArrow(el.scrollWidth > el.clientWidth + 1);
+    };
+
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, [selectedId]);
+
   return (
     <ProjectQuestLayout>
-      {/* ここから中身だけ */}
-      <div className="h-full flex gap-6 py-4 px-6">
-        {/* 左：募集クエスト一覧 */}
-        <aside className="w-72 bg-white rounded-xl shadow-md p-4 flex flex-col">
-          <h2 className="text-lg font-semibold mb-4">募集クエスト</h2>
+      <div className="h-full flex gap-6 px-10">
+      {/* 左：募集クエスト一覧（青い枠） */}
+      <aside className="relative w-80 flex-shrink-0 overflow-visible">
+        {/* 青いメニュー背景：上下だけちょっとはみ出させる */}
+        <div className="pointer-events-none absolute top-[-12px] bottom-[-12px] left-[2px] right-[2px]">
+          <Image
+            src="/images/メニュー背景@144x 1.png"
+            alt="メニュー背景"
+            fill
+            className="object-fill"
+          />
+        </div>
 
-          <div className="space-y-3 flex-1 overflow-y-auto">
+        {/* 中身（クエストカード＋追加ボタン） */}
+        <div className="relative z-10 flex flex-col h-full px-6 py-8">
+          <h2 className="text-lg font-semibold mb-4 text-white">募集クエスト</h2>
+
+          <div className="space-y-4 flex-1 overflow-y-auto pr-1">
             {quests.map((quest) => {
               const isActive = quest.id === selectedId;
+
+              const titleClass =
+                "text-sm font-semibold " + (isActive ? "text-white" : "text-gray-900");
+
+              const subClass =
+                "text-[11px] mt-1 " + (isActive ? "text-white/90" : "text-gray-700");
+
               return (
                 <button
                   key={quest.id}
+                  type="button"
                   onClick={() => setSelectedId(quest.id)}
-                  className={`w-full text-left rounded-xl px-4 py-3 border transition ${
-                    isActive
-                      ? "bg-gray-100 border-gray-700"
-                      : "bg-gray-50 border-gray-200 hover:border-gray-400"
-                  }`}
+                  className="relative w-full h-28 text-left"
                 >
-                  <div className="text-sm font-semibold text-gray-900">
-                    {quest.title}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    推奨Lv{quest.recommendedLevel} / 経過{
-                      quest.durationDays
-                    }
-                    日
-                  </div>
-                  <div className="mt-2">
-                    <span
-                      className={`inline-block w-full text-center px-3 py-1 rounded-full text-[11px] ${
-                        quest.status === "参加中"
-                          ? "bg-black text-white"
-                          : "bg-gray-300 text-gray-800"
-                      }`}
-                    >
-                      {quest.status === "参加中" ? "参加中" : "参加する"}
-                    </span>
+                  {/* 背景：選択/非選択で切り替え */}
+                  <Image
+                    src={isActive ? "/images/Group 54.png" : "/images/Group 40.png"}
+                    alt={quest.title}
+                    fill
+                    className="object-fill"
+                  />
+
+                  <div className="absolute inset-0 px-5 py-5 flex flex-col justify-between">
+                    <div>
+                      <div className={titleClass}>{quest.title}</div>
+                      <div className={subClass}>
+                        推奨Lv{quest.recommendedLevel} / 経過{quest.durationDays}日
+                      </div>
+                    </div>
+
+                    {/* ステータス（画像のまま使うならここ） */}
+                    <div className="relative w-24 h-7 mt-1">
+                      <Image
+                        src={
+                          quest.status === "参加中"
+                            ? "/images/Frame 8.png"
+                            : "/images/Frame 19.png"
+                        }
+                        alt={quest.status}
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
                   </div>
                 </button>
               );
             })}
+
           </div>
 
-          {/* 追加ボタン（モック） */}
+          {/* 追加ボタン */}
           <div className="mt-4 flex justify-center">
-            <button className="w-12 h-12 rounded-full bg-gray-200 border border-gray-400 flex items-center justify-center text-2xl leading-none text-gray-700" onClick={() => router.push("/quest/new")}>
-              +
+            <button
+              type="button"
+              onClick={() => router.push("/quest/new")}
+              className="relative w-10 h-10"
+            >
+              <Image
+                src="/images/Group 18.png"
+                alt="クエスト追加"
+                fill
+                className="object-contain"
+              />
             </button>
           </div>
-        </aside>
+        </div>
+      </aside>
 
         {/* 右：クエスト詳細 */}
-        <section className="flex-1 bg-white rounded-xl shadow-md p-4 flex flex-col">
-          {/* 上部：クエストタイトル */}
-          <div className="bg-gray-100 rounded-lg px-4 py-3 mb-4">
-            <div className="text-sm font-semibold text-gray-900">
-              {selected.title}
-            </div>
-            <div className="text-xs text-gray-800 mt-1">
-              推奨Lv{selected.recommendedLevel} / 経過
-              {selected.durationDays}日
+        <section className="flex-1 flex flex-col">
+          {/* 見出しボード */}
+          <div className="relative h-20 mb-4">
+            <Image
+              src="/images/見出し@144x.png"
+              alt="見出し"
+              fill
+              className="object-contain"
+            />
+            <div className="absolute inset-0 flex flex-col justify-center px-12">
+              <div className="text-base font-bold text-white">
+                {selected.title}
+              </div>
+              <div className="text-xs text-white mt-1">
+                推奨Lv{selected.recommendedLevel} / 経過
+                {selected.durationDays}日
+              </div>
             </div>
           </div>
 
-          {/* 詳細テキストエリア */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="grid grid-cols-2 gap-8 text-xs leading-relaxed">
-              {/* 左カラム：目的・達成条件・納品物 */}
+          <div className="flex-1 overflow-y-auto pr-2 text-xs leading-relaxed">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* 左カラム：目的・達成条件・納品対象 */}
               <div>
-                <SectionTitle>目的</SectionTitle>
-                <p className="mb-3 text-gray-800">{selected.objective}</p>
+                <DetailSection title="目的">
+                  <p>{selected.objective}</p>
+                </DetailSection>
 
-                <SectionTitle>達成条件</SectionTitle>
-                <ul className="list-disc list-inside mb-3 text-gray-800 space-y-1">
-                  {selected.conditions.map((c, i) => (
-                    <li key={i}>{c}</li>
-                  ))}
-                </ul>
-
-                <SectionTitle>納品対象</SectionTitle>
-                <ul className="list-disc list-inside mb-3 text-gray-800 space-y-1">
-                  {selected.deliverables.map((d, i) => (
-                    <li key={i}>{d}</li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* 右カラム：概要・報酬・経験値 */}
-              <div>
-                <SectionTitle>概要</SectionTitle>
-                <p className="mb-3 text-gray-800">{selected.summary}</p>
-
-                <SectionTitle>報酬</SectionTitle>
-                <ul className="list-disc list-inside mb-3 text-gray-800 space-y-1">
-                  {selected.rewards.map((r, i) => (
-                    <li key={i}>{r}</li>
-                  ))}
-                </ul>
-
-                <SectionTitle>獲得経験値</SectionTitle>
-                <ul className="list-disc list-inside mb-3 text-gray-800 space-y-1">
-                  {selected.expGains.map((e, i) => (
-                    <li key={i}>{e}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
-            {/* パーティ構成 */}
-            <div className="mt-6">
-              <h3 className="text-sm font-semibold mb-3">
-                パーティ構成★募集中と現在の人
-              </h3>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 overflow-x-auto">
-                  <div className="flex gap-3 min-w-max">
-                    {selected.partySlots.map((slot) => (
-                      <PartyCard key={slot.id} slot={slot} />
+                <DetailSection title="達成条件">
+                  <ul className="list-disc list-inside space-y-1">
+                    {selected.conditions.map((c, i) => (
+                      <li key={i}>{c}</li>
                     ))}
-                  </div>
-                </div>
-                {/* 右端の矢印（スクロールのイメージ） */}
-                <div className="flex-shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 text-lg">
-                    &gt;
-                  </div>
-                </div>
+                  </ul>
+                </DetailSection>
+
+                <DetailSection title="納品対象">
+                  <ul className="list-disc list-inside space-y-1">
+                    {selected.deliverables.map((d, i) => (
+                      <li key={i}>{d}</li>
+                    ))}
+                  </ul>
+                </DetailSection>
+              </div>
+
+              {/* 右カラム：概要・報酬・獲得経験値 */}
+              <div>
+                <DetailSection title="概要">
+                  <p>{selected.summary}</p>
+                </DetailSection>
+
+                <DetailSection title="報酬">
+                  <ul className="list-disc list-inside space-y-1">
+                    {selected.rewards.map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ul>
+                </DetailSection>
+
+                <DetailSection title="獲得経験値">
+                  <ul className="list-disc list-inside space-y-1">
+                    {selected.expGains.map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                  </ul>
+                </DetailSection>
               </div>
             </div>
+
+            {/* パーティ構成はその下に続く */}
+            <h3 className="mt-6 text-sm font-semibold">パーティ構成</h3>
+            <div className="mt-2 flex items-center gap-3">
+              {/* 横スクロールコンテナ */}
+              <div className="flex-1 overflow-x-auto" ref={partyScrollRef}>
+                <div className="flex gap-3 min-w-max">
+                  {selected.partySlots.map((slot) => (
+                    <PartyCard key={slot.id} slot={slot} />
+                  ))}
+                </div>
+              </div>
+
+              {/* 右端の矢印（Group 37.png）: スクロール必要なときだけ表示 */}
+              {showPartyArrow && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    partyScrollRef.current?.scrollBy({ left: 160, behavior: "smooth" })
+                  }
+                  className="flex-shrink-0 relative w-10 h-10"
+                >
+                  <Image
+                    src="/images/Group 37.png"
+                    alt="scroll right"
+                    fill
+                    className="object-contain"
+                  />
+                </button>
+              )}
+            </div>
           </div>
+
 
           {/* 下部：参加ボタン */}
           <div className="mt-4 flex justify-center">
             <button
+              type="button"
               onClick={handleJoin}
               disabled={selected.status === "参加中"}
               className={`w-64 py-3 rounded-full text-sm font-semibold transition ${
                 selected.status === "参加中"
                   ? "bg-gray-400 text-white cursor-default"
-                  : "bg-black text-white hover:bg-gray-800"
+                  : "bg-teal-700 text-white hover:bg-teal-800"
               }`}
             >
               {selected.status === "参加中"
@@ -333,35 +402,72 @@ export default function BoardPage() {
 
 // ---------- サブコンポーネント ----------
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function DetailSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <h3 className="text-xs font-semibold text-gray-700 mb-1 border-b border-gray-300 pb-0.5">
-      {children}
-    </h3>
+    <section className="mt-4">
+      {/* 茶色 & 太めの下線 */}
+      <h3 className="text-sm font-semibold text-[#8A4B26] border-b-2 border-[#8A4B26] pb-1 mb-2">
+        {title}
+      </h3>
+      <div className="text-xs text-gray-800 leading-relaxed">{children}</div>
+    </section>
   );
 }
 
 function PartyCard({ slot }: { slot: PartySlot }) {
-  const filledClass = slot.filled
-    ? slot.isYou
-      ? "bg-gray-900 text-white"
-      : "bg-gray-700 text-white"
-    : "bg-gray-100 text-gray-400";
+  const labelSrc = slot.filled
+    ? "/images/Frame 20.png" // 参加中
+    : "/images/Frame 21.png"; // 募集中
 
-  const label = slot.filled ? slot.role : "募集中";
+  const bottomClass = slot.filled
+    ? "bg-[#A54632] text-white"   // 参加中：赤
+    : "bg-[#B0B0B0] text-white";  // 募集中：グレー
+
+  // 役職ごとのキャラ画像
+  const roleImageMap: Record<string, string> = {
+    勇者: "/images/knight.jpg",
+    戦士: "/images/warrior.jpg",
+    魔法使い: "/images/wizard.jpg",
+    アーチャー: "/images/archer.jpg",
+  };
+  const roleImageSrc = roleImageMap[slot.role] ?? "/images/warrior.jpg";
 
   return (
-    <div className="w-32 h-40 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col overflow-hidden">
-      {/* 上：アイコン領域（プレースホルダ） */}
-      <div className="flex-1 bg-gray-100 flex items-center justify-center text-[11px] text-gray-500">
-        {slot.filled ? "参加メンバー" : "空きスロット"}
+    <div className="relative w-32 h-44 bg-white rounded-md shadow-sm border border-gray-200 overflow-hidden">
+
+      {/* 左上バッジ（参加中 / 募集中） */}
+      <div className="absolute top-0 left-0 w-20 h-7 z-10">
+        <Image src={labelSrc} alt="status" fill className="object-contain" />
       </div>
 
-      {/* 下：ロール＆名前 */}
-      <div className={`${filledClass} px-2 py-2 text-center text-[11px]`}>
-        <div className="font-semibold">{label}</div>
-        <div className="mt-1">
-          {slot.filled ? slot.name : "募集中（誰でも）"}
+      {/* 中身：バッジと被らないように上に余白をとる */}
+      <div className="h-full flex flex-col pt-4">
+        {/* 上：キャラ画像エリア */}
+        <div className="relative h-24 bg-[#F3F0E6] flex-shrink-0">
+          <Image
+            src={roleImageSrc}
+            alt={slot.role}
+            fill
+            className="object-contain"
+          />
+        </div>
+
+        {/* 下：色付き帯（役職＋名前） → カード下端まで塗りつぶし */}
+        <div
+          className={`${bottomClass} flex-1 px-2 py-1 text-center text-[11px] leading-tight`}
+        >
+          <div className="font-semibold text-sm">
+            {slot.filled ? slot.role : "募集中"}
+          </div>
+          <div className="mt-1">
+            {slot.filled ? slot.name : "募集中（誰でも）"}
+          </div>
         </div>
       </div>
     </div>
