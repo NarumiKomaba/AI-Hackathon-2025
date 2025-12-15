@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { getFirebaseFirestore } from "@/lib/firebaseClient";
 import {
@@ -28,6 +29,8 @@ type DraftDoc = QuestDraft & {
 };
 
 export default function EditQuestDraftPage() {
+  const router = useRouter();
+  
   const searchParams = useSearchParams();
   const draftId = searchParams.get("draftId");
 
@@ -105,7 +108,7 @@ export default function EditQuestDraftPage() {
       });
 
       setMessage(`クエストとして登録しました！（projectId: ${docRef.id}）`);
-      // router.push(`/quests/${docRef.id}`);
+      router.push(`/board`);
     } catch (err) {
       console.error("handleSaveAsProject error:", err);
       setMessage("クエストの登録に失敗しました…");

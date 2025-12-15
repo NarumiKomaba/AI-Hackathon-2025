@@ -20,7 +20,7 @@ export default function ProjectQuestLayout({ children }: Props) {
   return (
     <div className="min-h-screen bg-gray-300 flex items-center justify-center">
       {/* 1440 x 720 キャンバス */}
-      <div className="w-[1600px] h-[850px] bg-gray-200 flex flex-col">
+      <div className="w-[1600px] h-[1200px] bg-gray-200 flex flex-col">
         {/* ヘッダー（共通） */}
         <header className="bg-white shadow-sm">
           <div className="flex items-center justify-between px-6 py-3">
@@ -54,7 +54,7 @@ export default function ProjectQuestLayout({ children }: Props) {
         </header>
 
         {/* 各画面の中身 */}
-        <main className="flex-1 overflow-hidden">{children}</main>
+        <main className="flex-1 overflow">{children}</main>
       </div>
     </div>
   );
