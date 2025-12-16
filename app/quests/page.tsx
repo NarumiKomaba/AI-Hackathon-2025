@@ -347,7 +347,7 @@ export default function QuestManagementPage() {
             <div className="w-full flex justify-end pt-3">
               <button
                 type="button"
-                onClick={() => router.push("/quest/submit")}
+                onClick={() => router.push(`/quest/submit?questId=${selectedQuestId}`)}
                 className="relative w-70 h-16 md:w-66 md:h-20"
               >
                 <Image
