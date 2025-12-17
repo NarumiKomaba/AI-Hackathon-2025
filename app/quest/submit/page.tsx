@@ -1,10 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, Suspense, ChangeEvent } from "react";
 import ProjectQuestLayout from "@/components/layout/ProjectQuestLayout";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
-import { useRouter } from "next/navigation";
 
 type Quest = {
   id: string;
@@ -19,8 +18,10 @@ const MOCK_QUESTS: Quest[] = [
   { id: "onprem-llm", title: "オンプレ LLM 検証クエスト", recommendedLevel: 24, elapsedDays: 60 },
 ];
 
-export default function GuildSubmitPage() {
+function GuildSubmitPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+
   const questIdFromQuery = searchParams.get("questId");
 
   const [selectedQuestId, setSelectedQuestId] = useState(
@@ -34,7 +35,7 @@ export default function GuildSubmitPage() {
   const selectedQuest =
     MOCK_QUESTS.find((q) => q.id === selectedQuestId) ?? MOCK_QUESTS[0];
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) setFileName(file.name);
   };
@@ -44,7 +45,6 @@ export default function GuildSubmitPage() {
   const [isReporting, setIsReporting] = useState(false);
   const [reportSummary, setReportSummary] = useState("");
   const [reportError, setReportError] = useState("");
-  const router = useRouter();
 
   const handleCreateReport = async () => {
     const projectId = "dummy_projectId";
@@ -71,7 +71,6 @@ export default function GuildSubmitPage() {
       const j1 = await r1.json();
       const slides = j1.slides;
 
-      // サマリ的なものが返ってくるならここで表示してもOK
       if (j1.summary) {
         setReportSummary(j1.summary);
       }
@@ -96,6 +95,8 @@ export default function GuildSubmitPage() {
       a.download = `weekly_report_${projectId}.pptx`;
       a.click();
       URL.revokeObjectURL(url);
+
+      // ★ ローディング後に別ページへ遷移
       router.push(`/quests`);
     } catch (e) {
       console.error("handleCreateReport error:", e);
@@ -104,7 +105,7 @@ export default function GuildSubmitPage() {
       setIsReporting(false); // ★ loading終了
     }
   };
-  
+
   return (
     <ProjectQuestLayout>
       {/* ★ 報告書作成中だけ loading 動画を表示 */}
@@ -182,8 +183,12 @@ export default function GuildSubmitPage() {
                       <div className="text-red-600">報告書作成に失敗: {reportError}</div>
                     ) : (
                       <>
-                        <div className="font-semibold mb-2 text-[#3b2a1a]">報告書まとめ（生成結果）</div>
-                        <div className="whitespace-pre-wrap leading-relaxed">{reportSummary}</div>
+                        <div className="font-semibold mb-2 text-[#3b2a1a]">
+                          報告書まとめ（生成結果）
+                        </div>
+                        <div className="whitespace-pre-wrap leading-relaxed">
+                          {reportSummary}
+                        </div>
                       </>
                     )}
                   </div>
@@ -225,6 +230,7 @@ export default function GuildSubmitPage() {
             </section>
           </div>
 
+          {/* 下段：ボタン */}
           <div className="shrink-0">
             <div className="flex items-center justify-center gap-14">
               <button type="button" onClick={handleSubmit} className="shrink-0">
@@ -245,7 +251,9 @@ export default function GuildSubmitPage() {
                 <img
                   src="/images/make-blue.png"
                   alt="報告書作成"
-                  className={`h-20 w-auto select-none ${isReporting ? "opacity-60" : ""} cursor-pointer`}
+                  className={`h-20 w-auto select-none ${
+                    isReporting ? "opacity-60" : ""
+                  } cursor-pointer`}
                   draggable={false}
                 />
               </button>
@@ -254,5 +262,14 @@ export default function GuildSubmitPage() {
         </div>
       </div>
     </ProjectQuestLayout>
+  );
+}
+
+export default function GuildSubmitPage() {
+  // ★ useSearchParams を使っている Inner を Suspense でラップ
+  return (
+    <Suspense fallback={<div className="p-6">読み込み中...</div>}>
+      <GuildSubmitPageInner />
+    </Suspense>
   );
 }
