@@ -351,7 +351,7 @@ export default function QuestManagementPage() {
                 className="relative w-70 h-16 md:w-66 md:h-20 cursor-pointer"
               >
                 <Image
-                  src="/images/提出-off.png"
+                  src="/images/sub-blue.png"
                   alt="ギルドマスターに提出"
                   fill
                   className="object-contain"

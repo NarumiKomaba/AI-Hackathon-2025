@@ -14,6 +14,7 @@ import {
   getFirebaseFirestore,
 } from "@/lib/firebaseClient";
 import ProjectQuestLayout from "@/components/layout/ProjectQuestLayout";
+import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 
 // ★ 新しいクエスト案の形式に合わせる
 type QuestDraft = {
@@ -159,18 +160,7 @@ export default function NewQuestPage() {
   return (
     <ProjectQuestLayout>
       {uploading && (
-        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center">
-          <div className="w-[1060px] max-w-[90vw] rounded-2xl overflow-hidden shadow-xl">
-            <video
-              src="/movies/loading.mp4"
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="w-full h-auto block"
-            />
-          </div>
-        </div>
+        <LoadingOverlay show={uploading} />
       )}
 
       <div className="h-full px-8 py-6">
