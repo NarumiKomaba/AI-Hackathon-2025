@@ -38,8 +38,8 @@ export default function GuildSubmitPage() {
     if (file) setFileName(file.name);
   };
 
-  const handleSubmit = () => alert("提出（モック）");
-  const handleCreateReport = () => alert("報告書作成（モック）");
+  const handleSubmit = () => alert("提出");
+  const handleCreateReport = () => alert("報告書作成");
 
   return (
     <ProjectQuestLayout>
