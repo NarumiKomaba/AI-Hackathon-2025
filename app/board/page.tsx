@@ -15,6 +15,8 @@ import {
   serverTimestamp,
   where,
 } from "firebase/firestore";
+import { ReactCompilerRuntime } from "next/dist/server/route-modules/app-page/vendored/rsc/entrypoints";
+import { Timestamp } from "firebase-admin/firestore";
 
 type BoardQuestStatus = "参加中" | "募集中";
 
@@ -54,7 +56,7 @@ interface FirestoreQuestDoc {
     overview: string;          // BoardQuestに必要なフィールドを追加
     rewards: string[];        // BoardQuestに必要なフィールドを追加
     experiece_gains: string[];       // BoardQuestに必要なフィールドを追加
-    
+    start_date: Timestamp;
     // ★ 修正点: テンプレートフィールドを明示的に定義
     partySlotsTemplate?: PartySlot[]; 
 }
@@ -304,12 +306,43 @@ export default function BoardPage() {
             }
         });
 
+        // // 以下格納用データ（仮）
+        // const start = questDoc.start_date;
+        // const now = new Timestamp();
+
+        // start.setHours(0, 0, 0, 0);
+        // now.setHours(0, 0, 0, 0);
+        // // const durationDays = Math.floor((now.getTime()-questDoc.start_date))
+        // const durationDays = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        // const recommendedLevel = Math.round(Math.random()*100);
+
+        // Firestore Timestamp → Date
+const startDate: Date = questDoc.start_date.toDate();
+
+// 現在日時
+const nowDate: Date = new Date();
+
+// 日付を 00:00:00 に正規化
+startDate.setHours(0, 0, 0, 0);
+nowDate.setHours(0, 0, 0, 0);
+
+// 経過日数（開始日を1日目としてカウント）
+const durationDays = Math.max(
+  1,
+  Math.floor(
+    (nowDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+  ) + 1
+);
+
+// 仮のレコメンドレベル
+const recommendedLevel = Math.round(Math.random() * 100);
+
         // c. 結合された BoardQuest オブジェクトの作成
         const finalQuest: BoardQuest = {
             id: questDoc.id,
             title: questDoc.name,
-            recommendedLevel: 50,
-            durationDays: 100,
+            recommendedLevel: Number(recommendedLevel),
+            durationDays: Number(durationDays),
             status: questDoc.status,
             objective: questDoc.purpose,
             conditions: questDoc.success_condition,
@@ -319,7 +352,6 @@ export default function BoardPage() {
             expGains: questDoc.experiece_gains,
             // BoardQuestの型に合致させるために PartySlot[] を追加
             partySlots: finalPartySlots,
-
         };
 
         combinedQuests.push(finalQuest);
@@ -419,7 +451,7 @@ export default function BoardPage() {
             <button
               type="button"
               onClick={() => router.push("/quest/new")}
-              className="relative w-10 h-10 cursor-pointer"
+              className="relative w-10 h-10"
             >
               <Image
                 src="/images/Group 18.png"
