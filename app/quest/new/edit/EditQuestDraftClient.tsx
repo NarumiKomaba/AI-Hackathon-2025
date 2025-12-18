@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getFirebaseFirestore } from "@/lib/firebaseClient";
-import { doc, getDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, collection, addDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import ProjectQuestLayout from "@/components/layout/ProjectQuestLayout";
+import { useRouter } from "next/navigation";
 
 type QuestDraft = {
   title: string;
@@ -22,6 +23,8 @@ type DraftDoc = QuestDraft & {
 };
 
 export default function EditQuestDraftClient() {
+  const router = useRouter();
+
   const searchParams = useSearchParams();
   const draftId = searchParams.get("draftId");
 
@@ -81,24 +84,38 @@ export default function EditQuestDraftClient() {
 
     try {
       const db = getFirebaseFirestore();
+      const projectsCol = collection(db, "testProjects");
 
-      const projectsCol = collection(db, "projects");
+      // 現在時刻（クライアント）
+      const now = new Date();
+
+      // 日数を加算
+      now.setDate(now.getDate() + draft.durationDays);
+      // Firestore Timestamp に変換
+      const futureTimestamp = Timestamp.fromDate(now);
+
       const docRef = await addDoc(projectsCol, {
-        title: draft.title,
-        durationDays: draft.durationDays,
-        objective: draft.objective,
-        conditions: draft.conditions,
-        deliverables: draft.deliverables,
-        summary: draft.summary,
-        rewards: draft.rewards,
-        expGains: draft.expGains,
+        id: draft.tempProjectId ?? null,
+        name: draft.title,
+        client_name: null,
+        pm_name: null,
         status: "募集中",
-        createdAt: serverTimestamp(),
-        fromDraftId: draftId,
-        tempProjectId: draft.tempProjectId ?? null,
+        start_date: serverTimestamp(),
+        end_date: futureTimestamp,
+        overview: draft.summary,
+        purpose: draft.objective,
+        success_conditions: draft.conditions,
+        deliverables: draft.deliverables,
+        rewards: draft.rewards,
+        experience_gains: draft.expGains,
+        created_at: serverTimestamp(),
+        update_at:serverTimestamp(),
       });
 
+     
+
       setMessage(`クエストとして登録しました！（projectId: ${docRef.id}）`);
+      router.push(`/board`);
     } catch (err) {
       console.error("handleSaveAsProject error:", err);
       setMessage("クエストの登録に失敗しました…");
@@ -110,12 +127,13 @@ export default function EditQuestDraftClient() {
   return (
     <ProjectQuestLayout>
       <div className="h-full px-8 py-6">
-        <div className="h-full bg-white rounded-xl shadow-md px-8 py-6 flex flex-col gap-6">
-          {/* ヘッダ */}
-          <div className="flex items-baseline justify-between gap-4">
+        {/* メインコンテナを画面の高さに固定 */}
+        <div className="max-h-full bg-[#fdfaf1] rounded-xl shadow-[0_4px_20px_rgba(65,43,21,0.2)] border border-orange-200/50 px-8 py-6 flex flex-col gap-6 overflow-auto custom-scrollbar">
+           {/* ヘッダ */}
+          <div className="flex items-baseline justify-between gap-4 border-b border-orange-200/50 pb-4">
             <div>
-              <h1 className="text-lg font-semibold mb-1">クエスト案の編集</h1>
-              <p className="text-xs text-gray-800">
+              <h1 className="text-lg font-semibold mb-1 text-amber-900">クエスト案の編集</h1>
+              <p className="text-xs text-gray-800/80">
                 ギルドマスターが生成したクエスト案を確認・編集し、
                 問題なければ正式なクエストとして登録します。
               </p>
@@ -182,7 +200,7 @@ export default function EditQuestDraftClient() {
               </div>
 
               {/* 2列レイアウト本体 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 ">
                 {/* 左列：目的・達成条件・納品対象 */}
                 <div className="space-y-4">
                   {/* 目的 */}
@@ -191,7 +209,7 @@ export default function EditQuestDraftClient() {
                       目的
                     </label>
                     <textarea
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[96px]"
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px] custom-scrollbar"
                       value={draft.objective}
                       onChange={(e) =>
                         setDraft((prev) =>
@@ -209,7 +227,7 @@ export default function EditQuestDraftClient() {
                       達成条件（1行につき1つ）
                     </label>
                     <textarea
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px]"
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px] custom-scrollbar"
                       value={draft.conditions.join("\n")}
                       onChange={(e) => {
                         const lines = e.target.value
@@ -229,7 +247,7 @@ export default function EditQuestDraftClient() {
                       納品対象（1行につき1つ）
                     </label>
                     <textarea
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px]"
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px] custom-scrollbar"
                       value={draft.deliverables.join("\n")}
                       onChange={(e) => {
                         const lines = e.target.value
@@ -252,7 +270,7 @@ export default function EditQuestDraftClient() {
                       概要
                     </label>
                     <textarea
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px]"
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px] custom-scrollbar"
                       value={draft.summary}
                       onChange={(e) =>
                         setDraft((prev) =>
@@ -268,7 +286,7 @@ export default function EditQuestDraftClient() {
                       報酬（1行につき1つ）
                     </label>
                     <textarea
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[96px]"
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px] custom-scrollbar"
                       value={draft.rewards.join("\n")}
                       onChange={(e) => {
                         const lines = e.target.value
@@ -284,11 +302,11 @@ export default function EditQuestDraftClient() {
 
                   {/* 獲得経験値 */}
                   <div>
-                    <label className="block text-sm font-semibold mb-1">
+                    <label className="block text-sm font-semibold mb-1 ">
                       獲得経験値（1行につき1つ）
                     </label>
                     <textarea
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[96px]"
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px] custom-scrollbar"
                       value={draft.expGains.join("\n")}
                       onChange={(e) => {
                         const lines = e.target.value
@@ -312,12 +330,12 @@ export default function EditQuestDraftClient() {
               )}
 
               {/* 登録ボタン */}
-              <div className="pt-4 border-t border-gray-100">
+              <div className="pt-4 border-t border-orange-200/50">
                 <button
                   type="button"
                   onClick={handleSaveAsProject}
                   disabled={saving}
-                  className={`w-56 py-3 rounded-full text-sm font-semibold ${
+                  className={`w-56 py-3 rounded-full text-sm font-semibold shadow-md transition-transform active:scale-95 ${
                     saving
                       ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                       : "bg-gray-900 text-white hover:bg-gray-800"

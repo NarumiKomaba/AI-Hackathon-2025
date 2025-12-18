@@ -24,3 +24,23 @@ body {
   /* color: var(--foreground); */
   font-family: Arial, Helvetica, sans-serif;
 }
+
+
+/* 羊皮紙風のカスタムスクロールバー */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 14px; /* バーの太さ */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent; /* 背景は透明にして羊皮紙の色を活かす */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #d4a373; /* 羊皮紙より少し濃い茶色 */
+  border-radius: 20px;       /* 角を丸くする */
+  border: 2px solid #fdfaf1; /* スクロールバーの周りに背景色と同じ縁取りを入れる */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #a98467; /* ホバー時はさらに濃く */
+}

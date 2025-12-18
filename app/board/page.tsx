@@ -51,11 +51,11 @@ interface FirestoreQuestDoc {
     // durationDays: number;     // BoardQuestに必要なフィールドを追加
     status: BoardQuestStatus; // BoardQuestに必要なフィールドを追加
     purpose: string;        // BoardQuestに必要なフィールドを追加
-    success_condition: string[];     // BoardQuestに必要なフィールドを追加
+    success_conditions: string[];     // BoardQuestに必要なフィールドを追加
     deliverables: string[];   // BoardQuestに必要なフィールドを追加
     overview: string;          // BoardQuestに必要なフィールドを追加
     rewards: string[];        // BoardQuestに必要なフィールドを追加
-    experiece_gains: string[];       // BoardQuestに必要なフィールドを追加
+    experience_gains: string[];       // BoardQuestに必要なフィールドを追加
     start_date: Timestamp;
     // ★ 修正点: テンプレートフィールドを明示的に定義
     partySlotsTemplate?: PartySlot[]; 
@@ -345,11 +345,11 @@ const recommendedLevel = Math.round(Math.random() * 100);
             durationDays: Number(durationDays),
             status: questDoc.status,
             objective: questDoc.purpose,
-            conditions: questDoc.success_condition,
+            conditions: questDoc.success_conditions,
             deliverables: questDoc.deliverables,
             summary: questDoc.overview,
             rewards: questDoc.rewards,
-            expGains: questDoc.experiece_gains,
+            expGains: questDoc.experience_gains,
             // BoardQuestの型に合致させるために PartySlot[] を追加
             partySlots: finalPartySlots,
         };
