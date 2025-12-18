@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { getFirebaseFirestore } from "@/lib/firebaseClient";
 import { doc, getDoc, collection, addDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import ProjectQuestLayout from "@/components/layout/ProjectQuestLayout";
-import { useRouter } from "next/navigation";
+import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 
 type QuestDraft = {
   title: string;
@@ -22,9 +22,8 @@ type DraftDoc = QuestDraft & {
   tempProjectId?: string;
 };
 
-export default function EditQuestDraftClient() {
+function EditQuestDraftInner() {
   const router = useRouter();
-
   const searchParams = useSearchParams();
   const draftId = searchParams.get("draftId");
 
@@ -53,7 +52,6 @@ export default function EditQuestDraftClient() {
         }
 
         const data = snap.data() as Partial<DraftDoc>;
-
         setDraft({
           title: data.title ?? "",
           durationDays: data.durationDays ?? 30,
@@ -86,12 +84,8 @@ export default function EditQuestDraftClient() {
       const db = getFirebaseFirestore();
       const projectsCol = collection(db, "testProjects");
 
-      // 現在時刻（クライアント）
       const now = new Date();
-
-      // 日数を加算
       now.setDate(now.getDate() + draft.durationDays);
-      // Firestore Timestamp に変換
       const futureTimestamp = Timestamp.fromDate(now);
 
       const docRef = await addDoc(projectsCol, {
@@ -109,10 +103,8 @@ export default function EditQuestDraftClient() {
         rewards: draft.rewards,
         experience_gains: draft.expGains,
         created_at: serverTimestamp(),
-        update_at:serverTimestamp(),
+        update_at: serverTimestamp(),
       });
-
-     
 
       setMessage(`クエストとして登録しました！（projectId: ${docRef.id}）`);
       router.push(`/board`);
@@ -124,110 +116,112 @@ export default function EditQuestDraftClient() {
     }
   };
 
+  const headerTitle = useMemo(() => {
+    if (!draft) return "（読み込み中）";
+    return draft.title?.trim() ? draft.title : "（クエスト名未入力）";
+  }, [draft]);
+
+  const cardTitle = (t: string) => (
+    <div className="text-sm font-semibold mb-2 text-[#3b2a1a]">{t}</div>
+  );
+
   return (
     <ProjectQuestLayout>
-      <div className="h-full px-8 py-6">
-        {/* メインコンテナを画面の高さに固定 */}
-        <div className="max-h-full bg-[#fdfaf1] rounded-xl shadow-[0_4px_20px_rgba(65,43,21,0.2)] border border-orange-200/50 px-8 py-6 flex flex-col gap-6 overflow-auto custom-scrollbar">
-           {/* ヘッダ */}
-          <div className="flex items-baseline justify-between gap-4 border-b border-orange-200/50 pb-4">
-            <div>
-              <h1 className="text-lg font-semibold mb-1 text-amber-900">クエスト案の編集</h1>
-              <p className="text-xs text-gray-800/80">
-                ギルドマスターが生成したクエスト案を確認・編集し、
-                問題なければ正式なクエストとして登録します。
-              </p>
-            </div>
-            {draftId && (
-              <p className="text-[11px] text-gray-400">
-                draftId: <span className="font-mono">{draftId}</span>
-              </p>
-            )}
-          </div>
+      <LoadingOverlay show={saving} />
 
-          {loading ? (
-            <div className="flex-1 flex items-center justify-center text-xs text-gray-500">
-              クエスト案を読み込んでいます…
-            </div>
-          ) : !draft ? (
-            <div className="flex-1 flex items-center justify-center text-xs text-red-500">
-              {message || "クエスト案が読み込めませんでした。"}
-            </div>
-          ) : (
-            <>
-              {/* タイトル & 期間 */}
-              <div className="flex flex-col gap-3">
-                {/* クエスト名 */}
-                <div>
-                  <label className="block text-sm font-semibold mb-1">
-                    クエスト名
-                  </label>
-                  <input
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                    value={draft.title}
-                    onChange={(e) =>
-                      setDraft((prev) =>
-                        prev ? { ...prev, title: e.target.value } : prev
-                      )
-                    }
-                  />
-                </div>
-
-                {/* 想定期間 */}
-                <div className="w-64">
-                  <label className="block text-sm font-semibold mb-1">
-                    想定期間（日）
-                  </label>
-                  <input
-                    type="number"
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                    value={draft.durationDays}
-                    onChange={(e) =>
-                      setDraft((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              durationDays: Number(e.target.value),
-                            }
-                          : prev
-                      )
-                    }
-                  />
-                  <p className="mt-1 text-[11px] text-gray-500">
-                    ざっくりで構いません。7〜180日くらいを目安にしてください。
-                  </p>
-                </div>
+      <div className="h-full">
+        {/* 全体：上下分割（上：フォーム、下：大ボタン） */}
+        <div className="h-full flex flex-col gap-8">
+          {/* 上段 */}
+          <div className="flex-1 min-h-0">
+            {loading ? (
+              <div className="h-full flex items-center justify-center text-xs text-gray-500">
+                読み込み中...
               </div>
+            ) : !draft ? (
+              <div className="h-full flex items-center justify-center text-xs text-red-600">
+                {message || "クエスト案が読み込めませんでした。"}
+              </div>
+            ) : (
+              <div className="h-full flex flex-col gap-6 min-h-0">
+                {/* 先頭：クエスト名帯（横いっぱい） */}
+                <div>
+                  {cardTitle("クエスト名")}
+                  <div className="bg-[#6B4B2A] rounded-md px-4 py-3 text-white text-sm">
+                    {headerTitle}
+                    <span className="ml-3 text-xs opacity-90">
+                      期間 {draft.durationDays} 日
+                    </span>
+                  </div>
+                </div>
 
-              {/* 2列レイアウト本体 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 ">
-                {/* 左列：目的・達成条件・納品対象 */}
-                <div className="space-y-4">
-                  {/* 目的 */}
-                  <div>
-                    <label className="block text-sm font-semibold mb-1">
-                      目的
-                    </label>
-                    <textarea
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px] custom-scrollbar"
-                      value={draft.objective}
+                {/* ここから：左右2列（ご指定の並び） */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 auto-rows-min">
+                  {/* 1段目：クエスト名（編集）｜期間 */}
+                  <div className="flex flex-col min-h-0">
+                    {cardTitle("クエスト名（編集）")}
+                    <input
+                      className="w-full bg-gray-100 rounded-md px-4 py-3 text-sm outline-none"
+                      value={draft.title}
+                      onChange={(e) =>
+                        setDraft((prev) =>
+                          prev ? { ...prev, title: e.target.value } : prev
+                        )
+                      }
+                      placeholder="例：基幹システム刷新 編"
+                    />
+                  </div>
+
+                  <div className="flex flex-col min-h-0">
+                    {cardTitle("想定期間（日）")}
+                    <input
+                      type="number"
+                      className="w-full bg-gray-100 rounded-md px-4 py-3 text-sm outline-none"
+                      value={draft.durationDays}
                       onChange={(e) =>
                         setDraft((prev) =>
                           prev
-                            ? { ...prev, objective: e.target.value }
+                            ? { ...prev, durationDays: Number(e.target.value) }
                             : prev
                         )
                       }
                     />
                   </div>
 
-                  {/* 達成条件 */}
-                  <div>
-                    <label className="block text-sm font-semibold mb-1">
-                      達成条件（1行につき1つ）
-                    </label>
+                  {/* 2段目：目的｜概要 */}
+                  <div className="flex flex-col min-h-0">
+                    {cardTitle("目的")}
                     <textarea
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px] custom-scrollbar"
+                      className="flex-1 min-h-[120px] w-full bg-gray-100 rounded-md px-4 py-3 text-sm resize-none outline-none"
+                      value={draft.objective}
+                      onChange={(e) =>
+                        setDraft((prev) =>
+                          prev ? { ...prev, objective: e.target.value } : prev
+                        )
+                      }
+                      placeholder="このクエストで達成したいこと"
+                    />
+                  </div>
+
+                  <div className="flex flex-col min-h-0">
+                    {cardTitle("概要")}
+                    <textarea
+                      className="flex-1 min-h-[120px] w-full bg-gray-100 rounded-md px-4 py-3 text-sm resize-none outline-none"
+                      value={draft.summary}
+                      onChange={(e) =>
+                        setDraft((prev) =>
+                          prev ? { ...prev, summary: e.target.value } : prev
+                        )
+                      }
+                      placeholder="クエスト全体の要約"
+                    />
+                  </div>
+
+                  {/* 3段目：達成条件｜報酬 */}
+                  <div className="flex flex-col min-h-0">
+                    {cardTitle("達成条件")}
+                    <textarea
+                      className="flex-1 min-h-[80px] w-full bg-gray-100 rounded-md px-4 py-3 text-sm resize-none outline-none"
                       value={draft.conditions.join("\n")}
                       onChange={(e) => {
                         const lines = e.target.value
@@ -238,55 +232,14 @@ export default function EditQuestDraftClient() {
                           prev ? { ...prev, conditions: lines } : prev
                         );
                       }}
+                      placeholder={"例：\n要件定義を確定\n主要画面のプロトタイプ作成"}
                     />
                   </div>
 
-                  {/* 納品対象 */}
-                  <div>
-                    <label className="block text-sm font-semibold mb-1">
-                      納品対象（1行につき1つ）
-                    </label>
+                  <div className="flex flex-col min-h-0">
+                    {cardTitle("報酬")}
                     <textarea
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px] custom-scrollbar"
-                      value={draft.deliverables.join("\n")}
-                      onChange={(e) => {
-                        const lines = e.target.value
-                          .split(/\r?\n/)
-                          .map((s) => s.trim())
-                          .filter(Boolean);
-                        setDraft((prev) =>
-                          prev ? { ...prev, deliverables: lines } : prev
-                        );
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* 右列：概要・報酬・獲得経験値 */}
-                <div className="space-y-4">
-                  {/* 概要 */}
-                  <div>
-                    <label className="block text-sm font-semibold mb-1">
-                      概要
-                    </label>
-                    <textarea
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px] custom-scrollbar"
-                      value={draft.summary}
-                      onChange={(e) =>
-                        setDraft((prev) =>
-                          prev ? { ...prev, summary: e.target.value } : prev
-                        )
-                      }
-                    />
-                  </div>
-
-                  {/* 報酬 */}
-                  <div>
-                    <label className="block text-sm font-semibold mb-1">
-                      報酬（1行につき1つ）
-                    </label>
-                    <textarea
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px] custom-scrollbar"
+                      className="flex-1 min-h-[80px] w-full bg-gray-100 rounded-md px-4 py-3 text-sm resize-none outline-none"
                       value={draft.rewards.join("\n")}
                       onChange={(e) => {
                         const lines = e.target.value
@@ -297,16 +250,33 @@ export default function EditQuestDraftClient() {
                           prev ? { ...prev, rewards: lines } : prev
                         );
                       }}
+                      placeholder={"例：\nギルド内での評価向上\nノウハウ獲得"}
                     />
                   </div>
 
-                  {/* 獲得経験値 */}
-                  <div>
-                    <label className="block text-sm font-semibold mb-1 ">
-                      獲得経験値（1行につき1つ）
-                    </label>
+                  {/* 4段目：納品対象｜獲得経験値 */}
+                  <div className="flex flex-col min-h-0">
+                    {cardTitle("納品対象")}
                     <textarea
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-xs leading-relaxed min-h-[120px] custom-scrollbar"
+                      className="flex-1 min-h-[80px] w-full bg-gray-100 rounded-md px-4 py-3 text-sm resize-none outline-none"
+                      value={draft.deliverables.join("\n")}
+                      onChange={(e) => {
+                        const lines = e.target.value
+                          .split(/\r?\n/)
+                          .map((s) => s.trim())
+                          .filter(Boolean);
+                        setDraft((prev) =>
+                          prev ? { ...prev, deliverables: lines } : prev
+                        );
+                      }}
+                      placeholder={"例：\n設計書\nPoCデモ\n運用手順"}
+                    />
+                  </div>
+
+                  <div className="flex flex-col min-h-0">
+                    {cardTitle("獲得経験値")}
+                    <textarea
+                      className="flex-1 min-h-[80px] w-full bg-gray-100 rounded-md px-4 py-3 text-sm resize-none outline-none"
                       value={draft.expGains.join("\n")}
                       onChange={(e) => {
                         const lines = e.target.value
@@ -317,37 +287,55 @@ export default function EditQuestDraftClient() {
                           prev ? { ...prev, expGains: lines } : prev
                         );
                       }}
+                      placeholder={"例：\n要件定義スキル\n関係者調整スキル"}
                     />
                   </div>
                 </div>
-              </div>
 
-              {/* メッセージ */}
-              {message && (
-                <p className="text-xs text-gray-700 whitespace-pre-line">
-                  {message}
-                </p>
-              )}
-
-              {/* 登録ボタン */}
-              <div className="pt-4 border-t border-orange-200/50">
-                <button
-                  type="button"
-                  onClick={handleSaveAsProject}
-                  disabled={saving}
-                  className={`w-56 py-3 rounded-full text-sm font-semibold shadow-md transition-transform active:scale-95 ${
-                    saving
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-gray-900 text-white hover:bg-gray-800"
-                  }`}
-                >
-                  {saving ? "クエスト登録中..." : "この内容でクエストとして登録"}
-                </button>
+                {message && (
+                  <p className="text-xs text-gray-700 whitespace-pre-line">
+                    {message}
+                  </p>
+                )}
               </div>
-            </>
-          )}
+            )}
+          </div>
+
+          {/* 下段：大ボタン */}
+          <div className="shrink-0">
+            <div className="flex items-center justify-center gap-10">
+              <button
+                type="button"
+                onClick={() => router.push("/board")}
+                className="h-14 px-8 rounded-full bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 active:scale-95 transition"
+              >
+                戻る
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveAsProject}
+                disabled={saving || loading || !draft}
+                className={`h-14 px-10 rounded-full font-semibold text-white active:scale-95 transition ${
+                  saving || loading || !draft
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-gray-900 hover:bg-gray-800"
+                }`}
+              >
+                {saving ? "登録中..." : "この内容でクエストとして登録"}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </ProjectQuestLayout>
+  );
+}
+
+export default function EditQuestDraftClient() {
+  return (
+    <Suspense fallback={<div className="p-6">読み込み中...</div>}>
+      <EditQuestDraftInner />
+    </Suspense>
   );
 }

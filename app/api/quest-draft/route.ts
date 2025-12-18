@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { VertexAI } from "@google-cloud/vertexai";
+import { GoogleGenAI } from "@google/genai";
 import { adminBucket, adminDb } from "@/lib/firebaseAdmin";
 import { v4 as uuidv4 } from "uuid";
 
 export const dynamic = "force-dynamic"; // 保険（なくてもOKだが推奨）
 
-function getVertex() {
+function getGenAI() {
   const project =
     process.env.GCP_PROJECT_ID ||
     process.env.GOOGLE_CLOUD_PROJECT ||
@@ -13,22 +13,26 @@ function getVertex() {
 
   const location =
     process.env.GCP_LOCATION ||
+    process.env.GOOGLE_CLOUD_LOCATION ||
     process.env.VERTEX_LOCATION ||
     "asia-northeast1";
 
   if (!project) {
-    throw new Error(
-      "GCP project id is missing. Set GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT."
-    );
+    throw new Error("GCP project id is missing. Set GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT.");
   }
 
-  return new VertexAI({ project, location });
+  return new GoogleGenAI({
+    vertexai: true,
+    project,
+    location,
+  });
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const body = (await req.json()) as { tempProjectId?: string; hintTitle?: string };
     const { tempProjectId, hintTitle } = body;
+
 
     if (!tempProjectId) {
       return NextResponse.json(
@@ -83,17 +87,17 @@ export async function POST(req: Request) {
       fileName: sourceFiles[0].originalName,
     });
 
-    // ✅ ここで初期化（ビルド時に評価されない）
-    const vertex = getVertex();
-    const model = vertex.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const ai = getGenAI();
 
-    const result = await model.generateContent({
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
       contents: [{ role: "user", parts: [...fileParts, { text: prompt }] }],
+      config: {
+        thinkingConfig: { thinkingBudget: 0 }, // ✅ thinking off
+      },
     });
 
-    const text =
-      result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-
+    const text = result.text ?? "";
     return NextResponse.json(parseQuestDraftFromResponse(text));
   } catch (err) {
     console.error("quest-draft API error:", err);
@@ -131,12 +135,12 @@ RPG風の「クエスト概要」を JSON で1件だけ出力してください�
 制約:
 - title は 30 文字以内
 - durationDays は 7〜180 の整数（日数感でよい）
-- objective は 200〜400 文字程度
-- conditions は 3〜8 個程度の具体的な達成条件（箇条書き）
-- deliverables は 1〜5 個程度の納品物・成果物（箇条書き）
-- summary は 200〜400 文字程度のクエスト全体の概要
-- rewards は 1〜5 個程度の報酬内容（例: 「ギルド内での評価向上」「実運用のノウハウ獲得」など）
-- expGains は 1〜5 個程度の得られる経験・学び（例: 「要件定義スキルの向上」など）
+- objective は 100〜150 文字程度
+- conditions は 2〜3 個程度の具体的な達成条件（箇条書き）
+- deliverables は 1〜3 個程度の納品物・成果物（箇条書き）
+- summary は 100〜150 文字程度のクエスト全体の概要
+- rewards は 1〜2 個程度の報酬内容（例: 「ギルド内での評価向上」「ギルドマスターとの食事」など）
+- expGains は 1〜2 個程度の得られる経験・学び（例: 「要件定義スキルの向上」など）
 
 ヒントとなるクエスト名（任意）:
 ${hintTitle || "（指定なし）"}
