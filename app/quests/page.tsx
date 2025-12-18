@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ProjectQuestLayout from "@/components/layout/ProjectQuestLayout";
@@ -45,6 +45,13 @@ type Task = {
 };
 
 type TabKey = "progress" | "gantt" | "tasks";
+
+type GuildMasterMood = "smile" | "normal" | "strict";
+
+type GuildMasterCommentResponse = {
+  comment: string;
+  mood: GuildMasterMood;
+};
 
 // -------------------- モックデータ --------------------
 
@@ -201,10 +208,87 @@ export default function QuestManagementPage() {
     QUESTS[0]?.id ?? ""
   );
   const [activeTab, setActiveTab] = useState<TabKey>("progress");
+  const [gmComment, setGmComment] = useState<string>("");
+  const [gmMood, setGmMood] = useState<GuildMasterMood>("normal");
+  const [gmLoading, setGmLoading] = useState(false);
+  const [gmError, setGmError] = useState<string>("");
 
   const selectedQuest = QUESTS.find((q) => q.id === selectedQuestId)!;
   const detail = QUEST_DETAILS.find((d) => d.questId === selectedQuestId)!;
   const tasks = TASKS_BY_QUEST[selectedQuestId] ?? [];
+
+    // ▼▼▼ ここに追加：選択クエストが変わったらAIで一言生成 ▼▼▼
+  useEffect(() => {
+    let canceled = false;
+
+    async function run() {
+      setGmError("");
+      setGmLoading(true);
+
+      setGmComment(detail.guildMasterComment);
+      setGmMood("normal");
+
+      try {
+        const res = await fetch("/api/guildmaster-comment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            questTitle: selectedQuest.title,
+            recommendedLevel: selectedQuest.recommendedLevel,
+            elapsedDays: selectedQuest.elapsedDays,
+            status: selectedQuest.status,
+            metrics: detail.metrics,
+            debuffs: detail.debuffs,
+            tasks: tasks.map((t) => ({
+              title: t.title,
+              owner: t.owner,
+              due: t.due,
+              status: t.status,
+              progress: t.progress,
+            })),
+          }),
+        });
+
+        const json: unknown = await res.json();
+
+        if (!res.ok) {
+          const msg =
+            typeof json === "object" && json !== null
+              ? String(
+                  (json as { detail?: unknown; error?: unknown }).detail ??
+                    (json as { detail?: unknown; error?: unknown }).error ??
+                    "failed"
+                )
+              : "failed";
+          throw new Error(msg);
+        }
+
+        const data = json as Partial<GuildMasterCommentResponse>;
+
+        const comment = typeof data.comment === "string" ? data.comment : "";
+        const mood: GuildMasterMood =
+          data.mood === "smile" || data.mood === "strict" || data.mood === "normal"
+            ? data.mood
+            : "normal";
+
+        if (!canceled) {
+          setGmComment(comment.trim());
+          setGmMood(mood);
+        }
+      } catch (e: unknown) {
+        if (!canceled) setGmError(getErrorMessage(e));
+      } finally {
+        if (!canceled) setGmLoading(false);
+      }
+    }
+
+    run();
+    return () => {
+      canceled = true;
+    };
+  }, [selectedQuestId]); // ★ クエスト切替で生成
+  // ▲▲▲ ここまで追加 ▲▲▲
+
 
   return (
     <ProjectQuestLayout>
@@ -330,7 +414,13 @@ export default function QuestManagementPage() {
             <div className="px-8 pt-0 pb-6 bg-[#F7F1E3] mt-[-7px] h-[490px]">
               {activeTab === "progress" && (
                 <div className="h-full overflow-y-auto pr-1">
-                  <ProgressView detail={detail} />
+                  <ProgressView
+                    detail={detail}
+                    guildMasterComment={gmComment}
+                    mood={gmMood}
+                    loading={gmLoading}
+                    error={gmError}
+                  />
                 </div>
               )}
               {activeTab === "gantt" && (
@@ -366,6 +456,16 @@ export default function QuestManagementPage() {
   );
 }
 
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return "Unknown error";
+  }
+}
+
 // -------------------- サブコンポーネント --------------------
 
 function TabButton(props: {
@@ -397,7 +497,7 @@ function TabButton(props: {
   );
 }
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
+function SectionHeading({ children }: { children: ReactNode }) {
   return (
     <h3 className="text-sm font-semibold text-[#8A4B26] border-b-2 border-[#8A4B26] pb-1 mb-3">
       {children}
@@ -405,9 +505,25 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ProgressView({ detail }: { detail: QuestDetail }) {
-  const agiMetric = detail.metrics.find((m) => m.key === "agi");
-  const isGoodProgress = (agiMetric?.value ?? 0) >= 60;
+function ProgressView({
+  detail,
+  guildMasterComment,
+  mood,
+  loading,
+  error,
+}: {
+  detail: QuestDetail;
+  guildMasterComment: string;
+  mood: GuildMasterMood;
+  loading: boolean;
+  error: string;
+}) {
+  const masterSrc =
+    mood === "smile"
+      ? "/images/master_smile.png"
+      : mood === "strict"
+      ? "/images/master.png"
+      : "/images/master_smile.png";
 
   return (
     <div className="flex flex-col gap-6 pt-4">
@@ -450,11 +566,7 @@ function ProgressView({ detail }: { detail: QuestDetail }) {
           {/* ギルドマスター画像：さらに大きく */}
           <div className="relative w-40 h-40 md:w-44 md:h-44 flex-shrink-0">
             <Image
-              src={
-                isGoodProgress
-                  ? "/images/master_smile.png"
-                  : "/images/master.png"
-              }
+              src={masterSrc}
               alt="ギルドマスター"
               fill
               className="object-contain"
@@ -465,7 +577,8 @@ function ProgressView({ detail }: { detail: QuestDetail }) {
               ギルドマスターの一言
             </div>
             <p className="text-xs md:text-sm leading-relaxed whitespace-pre-line">
-              {detail.guildMasterComment}
+              {loading ? "…ふむふむ、、このプロジェクトの状況はどうかな。" : guildMasterComment}
+              {error ? `\n（生成失敗：${error}）` : ""}
             </p>
           </div>
         </div>
