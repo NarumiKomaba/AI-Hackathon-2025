@@ -14,10 +14,51 @@ type ReqBody = {
   projectStatus?: ProjectStatus;
   project_status?: ProjectStatus;
   projectName?: string;
-  slides: any[];
+  slides: unknown[];
 };
 
-function safeStr(v: any, max = 200) {
+type PptxWriteResult = Buffer | Uint8Array | ArrayBuffer;
+
+/** ここは「使う分だけ」最小限で型定義（pptxgenjsの実体に寄せる） */
+type PptxGenLike = {
+  layout: string;
+  addSlide: () => SlideLike;
+
+  ChartType: {
+    bar: unknown;
+  };
+
+  write: (opts: { outputType: "nodebuffer" }) => Promise<PptxWriteResult>;
+};
+
+type SlideLike = {
+  background?: { color: string };
+
+  addText: (text: string, options: Record<string, unknown>) => void;
+  addShape: (type: string, options: Record<string, unknown>) => void;
+  addTable: (
+    rows: Array<Array<{ text: string; options?: Record<string, unknown> }>>,
+    options: Record<string, unknown>
+  ) => void;
+  addChart: (chartType: unknown, data: unknown, options: Record<string, unknown>) => void;
+};
+
+type SlideContentType =
+  | "text_summary"
+  | "bullet_points"
+  | "issue_table"
+  | "issue_text"
+  | "table_and_text"
+  | "multi_chart_and_text"
+  | "text_simple";
+
+type SlideJson = {
+  content_type?: SlideContentType;
+  title?: unknown;
+  body?: unknown;
+} & Record<string, unknown>;
+
+function safeStr(v: unknown, max = 200) {
   const s = typeof v === "string" ? v : JSON.stringify(v);
   return s.length > max ? s.slice(0, max) + "..." : s;
 }
@@ -33,7 +74,7 @@ function getProjectNameFromStatus(projectStatus?: ProjectStatus, fallback?: stri
   return String(name);
 }
 
-function normalizeText(v: any) {
+function normalizeText(v: unknown) {
   if (v === null || v === undefined) return "";
   let s = String(v);
 
@@ -49,13 +90,15 @@ function normalizeText(v: any) {
   return s;
 }
 
+function isSlideJson(v: unknown): v is SlideJson {
+  return typeof v === "object" && v !== null;
+}
+
 /** ====== Layout Const (LAYOUT_WIDE) ======
  * 13.333 x 7.5 inch
  */
-const SLIDE_W = 13.333;
-const SLIDE_H = 7.5;
 
-function addCoverSafe(pptx: any, projectName: string) {
+function addCoverSafe(pptx: PptxGenLike) {
   const slide = pptx.addSlide();
   slide.background = { color: "FFFFFF" };
 
@@ -114,7 +157,7 @@ function addCoverSafe(pptx: any, projectName: string) {
   });
 }
 
-function addHeaderFooter(slide: any, pageNumStr: string) {
+function addHeaderFooter(slide: SlideLike, pageNumStr: string) {
   // 右上ロゴ
   slide.addText("CTC", {
     x: 10.3,
@@ -145,9 +188,30 @@ function addHeaderFooter(slide: any, pageNumStr: string) {
   const s = 0.18;
   const g = 0.03;
 
-  slide.addShape("rect", { x: iconX, y: iconY, w: s, h: s, fill: { color: "64B4EB" }, line: { color: "64B4EB" } });
-  slide.addShape("rect", { x: iconX + s + g, y: iconY, w: s, h: s, fill: { color: "005AAA" }, line: { color: "005AAA" } });
-  slide.addShape("rect", { x: iconX, y: iconY + s + g, w: s, h: s, fill: { color: "005AAA" }, line: { color: "005AAA" } });
+  slide.addShape("rect", {
+    x: iconX,
+    y: iconY,
+    w: s,
+    h: s,
+    fill: { color: "64B4EB" },
+    line: { color: "64B4EB" },
+  });
+  slide.addShape("rect", {
+    x: iconX + s + g,
+    y: iconY,
+    w: s,
+    h: s,
+    fill: { color: "005AAA" },
+    line: { color: "005AAA" },
+  });
+  slide.addShape("rect", {
+    x: iconX,
+    y: iconY + s + g,
+    w: s,
+    h: s,
+    fill: { color: "005AAA" },
+    line: { color: "005AAA" },
+  });
 
   // 左下フッター文
   slide.addText("無限の未来と、幾千のテクノロジーをつなぐ。", {
@@ -183,10 +247,9 @@ function addHeaderFooter(slide: any, pageNumStr: string) {
   });
 }
 
-function addPageTitle(slide: any, pageNo: number, title: string) {
+function addPageTitle(slide: SlideLike, pageNo: number, title: string) {
   const y = 0.95;
 
-  // 左三角（Colab風）
   slide.addShape("triangle", {
     x: 0.45,
     y,
@@ -194,10 +257,9 @@ function addPageTitle(slide: any, pageNo: number, title: string) {
     h: 0.55,
     fill: { color: "005AAA" },
     line: { color: "005AAA" },
-    rotate: 90, // 右向きっぽく
+    rotate: 90,
   });
 
-  // Pxx
   slide.addText(`P${String(pageNo).padStart(2, "0")}`, {
     x: 1.05,
     y: y - 0.05,
@@ -210,7 +272,6 @@ function addPageTitle(slide: any, pageNo: number, title: string) {
     valign: "middle",
   });
 
-  // 縦線
   slide.addShape("rect", {
     x: 2.0,
     y: y - 0.05,
@@ -220,7 +281,6 @@ function addPageTitle(slide: any, pageNo: number, title: string) {
     line: { color: "000000" },
   });
 
-  // タイトル
   slide.addText(normalizeText(title ?? "No Title"), {
     x: 2.15,
     y: y - 0.12,
@@ -234,24 +294,33 @@ function addPageTitle(slide: any, pageNo: number, title: string) {
   });
 }
 
-function paginateSlides(slides: any[], bulletMax = 7) {
-  const out: any[] = [];
+function paginateSlides(slides: unknown[], bulletMax = 7): SlideJson[] {
+  const out: SlideJson[] = [];
 
   for (const s of slides) {
-    const c = s?.content_type;
-    const body = s?.body ?? {};
+    if (!isSlideJson(s)) continue;
 
-    // bullet_points: 従来どおり
+    const slide: SlideJson = s;
+
+    const c = slide.content_type;
+    const body =
+      typeof slide.body === "object" && slide.body !== null
+        ? (slide.body as Record<string, unknown>)
+        : {};
+
     if (c === "bullet_points") {
-      const items: any[] = Array.isArray(body.items) ? body.items : [];
+      const items = Array.isArray(body.items) ? body.items.map((v: unknown) => String(v ?? "")) : [];
+
       if (items.length > bulletMax) {
         const chunks = Array.from({ length: Math.ceil(items.length / bulletMax) }, (_, i) =>
           items.slice(i * bulletMax, (i + 1) * bulletMax)
         );
-        const baseTitle = s?.title ?? "No Title";
+
+        const baseTitle = typeof slide.title === "string" ? slide.title : "No Title";
+
         chunks.forEach((chunk, idx) => {
           out.push({
-            ...s,
+            ...slide,
             title: `${baseTitle} (${idx + 1}/${chunks.length})`,
             body: { ...body, items: chunk },
           });
@@ -260,17 +329,15 @@ function paginateSlides(slides: any[], bulletMax = 7) {
       }
     }
 
-    // issue_table / issue_text / table_and_text: 高さ推定で分割
     if (c === "issue_table" || c === "issue_text" || c === "table_and_text") {
-      const headers = (body.table_headers ?? []).map((h: any) => String(h ?? ""));
-      let rows: any[] = Array.isArray(body.table_rows) ? body.table_rows : [];
-      if (rows.length && !Array.isArray(rows[0])) rows = [rows];
-      const safeRows = rows.map((r: any[]) => r.map((v) => String(v ?? "")));
+      const headers = Array.isArray(body.table_headers) ? body.table_headers.map((h: unknown) => String(h ?? "")) : [];
 
-      const baseTitle = s?.title ?? "No Title";
+      let rows: unknown[] = Array.isArray(body.table_rows) ? body.table_rows : [];
+      if (rows.length > 0 && !Array.isArray(rows[0])) rows = [rows];
 
-      // スライド内で使える「テーブル最大高さ」をタイプで変える
-      // issue_text は下に分析枠が来るのでテーブルは浅め
+      const safeRows: string[][] = rows.map((r) => (Array.isArray(r) ? r.map((v: unknown) => String(v ?? "")) : []));
+
+      const baseTitle = typeof slide.title === "string" ? slide.title : "No Title";
       const maxTableH = c === "issue_table" ? 4.6 : 3.0;
 
       const { chunks } = splitRowsByEstimatedHeight(headers, safeRows, 11.8, maxTableH);
@@ -278,7 +345,7 @@ function paginateSlides(slides: any[], bulletMax = 7) {
       if (chunks.length > 1) {
         chunks.forEach((chunk, idx) => {
           out.push({
-            ...s,
+            ...slide,
             title: `${baseTitle} (${idx + 1}/${chunks.length})`,
             body: { ...body, table_rows: chunk },
           });
@@ -287,7 +354,7 @@ function paginateSlides(slides: any[], bulletMax = 7) {
       }
     }
 
-    out.push(s);
+    out.push(slide);
   }
 
   return out;
@@ -297,18 +364,14 @@ function paginateSlides(slides: any[], bulletMax = 7) {
 const COLOR_CTC_BLUE = "005AAA";
 
 function isCJK(ch: string) {
-  // 雑に: CJK/全角っぽいのを広めにカウント
   return /[\u3000-\u9FFF\uFF00-\uFFEF]/.test(ch);
 }
 
 function estimateLines(text: string, colWInch: number) {
-  // ざっくり: colWInch が小さいほど1行当たりの文字数は減る
-  // CJKは幅を大きめに見積もる
   const s = String(text ?? "");
   if (!s) return 1;
 
-  // 1インチあたりの「半角換算文字数」ざっくり
-  const charsPerInch = 10; // 調整ポイント（小さくすると行数増える=安全側）
+  const charsPerInch = 10;
   const cap = Math.max(6, Math.floor(colWInch * charsPerInch));
 
   let units = 0;
@@ -321,9 +384,8 @@ function estimateLines(text: string, colWInch: number) {
 }
 
 function estimateRowHeightInch(cells: string[], colW: number[]) {
-  // 行の高さを「最も折り返しが起きるセル」に合わせる
-  const base = 0.32;       // 1行分の最低高さ
-  const perLine = 0.18;    // 追加1行あたり
+  const base = 0.32;
+  const perLine = 0.18;
   let maxLines = 1;
 
   for (let i = 0; i < Math.min(cells.length, colW.length); i++) {
@@ -334,7 +396,6 @@ function estimateRowHeightInch(cells: string[], colW: number[]) {
 }
 
 function deriveColWeights(headers: string[]) {
-  // Colab版の意図をTSに移植（ざっくり重み）
   return headers.map((h) => {
     const hs = String(h ?? "");
     if (hs.includes("ID")) return 0.9;
@@ -353,18 +414,12 @@ function weightsToColW(totalW: number, weights: number[]) {
   return weights.map((w) => (totalW * w) / sum);
 }
 
-function splitRowsByEstimatedHeight(
-  headers: string[],
-  rows: string[][],
-  totalW: number,
-  maxTableH: number
-) {
-  // 1スライド内に収まるように rows をチャンク分割（高さ推定で）
+function splitRowsByEstimatedHeight(headers: string[], rows: string[][], totalW: number, maxTableH: number) {
   const colW = weightsToColW(totalW, deriveColWeights(headers));
-  const headerH = 0.42; // ヘッダ行高さ
+  const headerH = 0.42;
   const topPad = 0.05;
 
-  let chunks: string[][][] = [];
+  const chunks: string[][][] = [];
   let cur: string[][] = [];
   let curH = headerH + topPad;
 
@@ -378,19 +433,13 @@ function splitRowsByEstimatedHeight(
     cur.push(r);
     curH += rh;
   }
+
   if (cur.length) chunks.push(cur);
+
   return { chunks, colW };
 }
 
-function renderTable(
-  slide: any,
-  headers: any[],
-  rows: any[],
-  x: number,
-  y: number,
-  w: number,
-  opts?: { maxTableH?: number; forceRowH?: number }
-) {
+function renderTable(slide: SlideLike, headers: unknown[], rows: unknown[], x: number, y: number, w: number) {
   const safeHeaders = Array.isArray(headers) ? headers.map((h) => normalizeText(h ?? "")) : [];
   const safeRows = Array.isArray(rows)
     ? rows.map((r) => (Array.isArray(r) ? r.map((c) => normalizeText(c ?? "")) : [normalizeText(r ?? "")]))
@@ -411,6 +460,7 @@ function renderTable(
       margin: 2,
     },
   }));
+
   function colAlignByHeader(h: string) {
     const hs = String(h ?? "");
     if (hs.includes("ID")) return "center";
@@ -419,25 +469,25 @@ function renderTable(
     if (hs.includes("影響") || /Impact/i.test(hs)) return "center";
     if (hs.includes("期限") || /Due/i.test(hs)) return "center";
     if (hs.includes("担当") || /Assignee/i.test(hs)) return "center";
-    return "left"; // 課題/件名/本文系
+    return "left";
   }
   const colAlign = safeHeaders.map(colAlignByHeader);
 
-    const bodyRows = safeRows.map((r) =>
+  const bodyRows = safeRows.map((r) =>
     r.map((c, cIdx) => ({
-        text: c,
-        options: {
+      text: c,
+      options: {
         color: "000000",
         fontFace: "Meiryo UI",
         fontSize: 12,
         valign: "top",
         align: colAlign[cIdx] ?? "left",
         margin: 2,
-        },
+      },
     }))
-    );
+  );
 
-    slide.addTable([headerRow, ...bodyRows], {
+  slide.addTable([headerRow, ...bodyRows], {
     x,
     y,
     w,
@@ -445,26 +495,23 @@ function renderTable(
     border: { type: "solid", color: "CFCFCF", pt: 1 },
     fill: "FFFFFF",
     valign: "middle",
-
-    // 見た目：詰まり緩和
     fontFace: "Meiryo UI",
     fontSize: 12,
-    });
+  });
 
   return { colW };
 }
 
-/** content_type 別レンダリング（まずは “崩れない” を優先） */
-function renderContent(pptx: any, slide: any, data: any) {
-  const cType = data?.content_type;
-  const body = data?.body ?? {};
+function renderContent(pptx: PptxGenLike, slide: SlideLike, data: SlideJson) {
+  const cType = data.content_type;
+  const body =
+    typeof data.body === "object" && data.body !== null ? (data.body as Record<string, unknown>) : {};
 
   const baseX = 0.8;
   const startY = 2.0;
   const contentW = 11.8;
   const footerY = 6.85;
 
-  // A) Summary
   if (cType === "text_summary") {
     const summary = normalizeText(body.summary_text ?? "");
     slide.addText(summary, {
@@ -478,7 +525,7 @@ function renderContent(pptx: any, slide: any, data: any) {
       valign: "top",
     });
 
-    const points: any[] = Array.isArray(body.key_points) ? body.key_points : [];
+    const points = Array.isArray(body.key_points) ? body.key_points.map((p: unknown) => normalizeText(p ?? "")) : [];
     if (points.length) {
       const boxY = startY + 1.55;
       const boxH = Math.max(1.2, Math.min(footerY - boxY - 0.1, 0.5 + 0.35 * points.length));
@@ -507,9 +554,8 @@ function renderContent(pptx: any, slide: any, data: any) {
     return;
   }
 
-  // B) Bullet
   if (cType === "bullet_points") {
-    const items: any[] = Array.isArray(body.items) ? body.items : [];
+    const items = Array.isArray(body.items) ? body.items.map((it: unknown) => normalizeText(it ?? "")) : [];
     slide.addText(items.map((it) => `▶ ${normalizeText(it)}`).join("\n"), {
       x: baseX,
       y: startY,
@@ -524,12 +570,11 @@ function renderContent(pptx: any, slide: any, data: any) {
     return;
   }
 
-  // C) Issue table
   if (cType === "issue_table") {
     renderTable(
       slide,
-      body.table_headers ?? [],
-      body.table_rows ?? [],
+      Array.isArray(body.table_headers) ? body.table_headers : [],
+      Array.isArray(body.table_rows) ? body.table_rows : [],
       baseX,
       startY,
       contentW
@@ -537,30 +582,23 @@ function renderContent(pptx: any, slide: any, data: any) {
     return;
   }
 
-  // D) Issue text / table_and_text
   if (cType === "issue_text" || cType === "table_and_text") {
-    const headers = (body.table_headers ?? []).map((h: any) => String(h ?? ""));
-    let rows: any[] = Array.isArray(body.table_rows) ? body.table_rows : [];
-    if (rows.length && !Array.isArray(rows[0])) rows = [rows];
-    const safeRows = rows.map((r: any[]) => r.map((v) => String(v ?? "")));
+    const headers = Array.isArray(body.table_headers) ? body.table_headers.map((h: unknown) => String(h ?? "")) : [];
 
-    // 1) table
+    let rows: unknown[] = Array.isArray(body.table_rows) ? body.table_rows : [];
+    if (rows.length > 0 && !Array.isArray(rows[0])) rows = [rows];
+
+    const safeRows: string[][] = rows.map((r) => (Array.isArray(r) ? r.map((v: unknown) => String(v ?? "")) : []));
+
     const { colW } = renderTable(slide, headers, safeRows, baseX, startY, contentW);
 
-    // 2) テーブル高さ推定（ヘッダ + 各行）
     const headerH = 0.42;
     let tableH = headerH + 0.05;
-    for (const r of safeRows) {
-      tableH += estimateRowHeightInch(r, colW);
-    }
+    for (const r of safeRows) tableH += estimateRowHeightInch(r, colW);
 
-    // 3) analysis placement
     const analysis = normalizeText(body.critical_issue_analysis ?? body.analysis_text ?? "");
     if (analysis) {
-      // テーブル下 + 余白
       const textStartY = startY + Math.min(tableH + 0.35, 4.9);
-
-      // フッターまでの残り
       const availableH = Math.max(1.2, footerY - textStartY - 0.1);
 
       slide.addText("▼ 詳細分析・リカバリ策", {
@@ -597,24 +635,18 @@ function renderContent(pptx: any, slide: any, data: any) {
     return;
   }
 
-  // E) multi_chart_and_text（棒グラフで描画）
   if (cType === "multi_chart_and_text") {
-    const charts: any[] = Array.isArray(body.charts) ? body.charts : [];
+    const chartsRaw = Array.isArray(body.charts) ? body.charts : [];
+    const charts = chartsRaw
+      .slice(0, 3)
+      .filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null);
+
     const comment = normalizeText(body.forecast_comment ?? "");
 
-    const chartCount = Math.max(0, Math.min(3, charts.length)); // 最大3つ想定
-    const baseX = 0.8;
-    const startY = 2.0;
-    const contentW = 11.8;
-    const footerY = 6.85;
-
-    // グラフ領域（Colab版に寄せて低め）
+    const chartCount = Math.max(0, Math.min(3, charts.length));
     const chartH = 2.4;
     const spacing = 0.25;
-    const chartW =
-      chartCount > 0
-        ? (contentW - spacing * (chartCount - 1)) / chartCount
-        : contentW;
+    const chartW = chartCount > 0 ? (contentW - spacing * (chartCount - 1)) / chartCount : contentW;
 
     for (let i = 0; i < chartCount; i++) {
       const c = charts[i] ?? {};
@@ -623,19 +655,17 @@ function renderContent(pptx: any, slide: any, data: any) {
       const labelsRaw = Array.isArray(c.labels) ? c.labels : [];
       const valuesRaw = Array.isArray(c.values) ? c.values : [];
 
-      const labels = labelsRaw.map((v: any) => String(v));
-      const values = valuesRaw.map((v: any) => {
+      const labels = labelsRaw.map((v: unknown) => String(v ?? ""));
+      const values = valuesRaw.map((v: unknown) => {
         const n = Number(v);
         return Number.isFinite(n) ? n : 0;
       });
 
-      // ラベルと値の長さ合わせ
       if (labels.length > values.length) values.push(...Array(labels.length - values.length).fill(0));
       if (values.length > labels.length) values.length = labels.length;
 
       const x = baseX + (chartW + spacing) * i;
 
-      // タイトル
       slide.addText(title, {
         x,
         y: startY - 0.35,
@@ -646,10 +676,10 @@ function renderContent(pptx: any, slide: any, data: any) {
         bold: true,
         color: "005AAA",
       });
+
       const maxLabelLen = Math.max(0, ...labels.map((l: string) => l.length));
       const rotate = maxLabelLen >= 8 ? 45 : 0;
 
-      // addChart データ形式
       const data = [
         {
           name: "Value",
@@ -658,7 +688,7 @@ function renderContent(pptx: any, slide: any, data: any) {
         },
       ];
 
-        slide.addChart(pptx.ChartType.bar, data, {
+      slide.addChart(pptx.ChartType.bar, data, {
         x,
         y: startY,
         w: chartW,
@@ -669,10 +699,9 @@ function renderContent(pptx: any, slide: any, data: any) {
         barDir: "col",
         chartColors: ["005AAA"],
         catAxisLabelRotation: rotate,
-        });
+      });
     }
 
-    // 下部コメントエリア
     const textY = startY + chartH + 0.35;
     const boxH = Math.max(1.2, footerY - textY - 0.1);
 
@@ -710,8 +739,8 @@ function renderContent(pptx: any, slide: any, data: any) {
     return;
   }
 
-  // F) fallback
-  const text = body?.text ? normalizeText(body.text) : normalizeText(safeStr(body, 2000));
+  const text =
+    "text" in body ? normalizeText((body as Record<string, unknown>).text) : normalizeText(safeStr(body, 2000));
   slide.addText(text, {
     x: baseX,
     y: startY,
@@ -724,69 +753,73 @@ function renderContent(pptx: any, slide: any, data: any) {
   });
 }
 
+type PptxGenCtor = new () => PptxGenLike;
+type PptxGenImport = { default?: PptxGenCtor } & PptxGenCtor;
+
 export async function POST(req: Request) {
-  const t0 = Date.now();
   try {
     const body = (await req.json()) as ReqBody;
 
     const projectId = body.projectId ?? "dummy_projectId";
-    const status = body.projectStatus ?? body.project_status;
-    const projectName = getProjectNameFromStatus(status, body.projectName);
 
     if (!Array.isArray(body.slides) || body.slides.length === 0) {
       throw new Error("slides が配列ではない、または 0 件です");
     }
 
-    // ✅ 動的 import
-    const mod: any = await import("pptxgenjs");
-    const PptxGen = mod.default ?? mod;
+    // ✅ 動的 import（default/export両対応）
+    const mod = (await import("pptxgenjs")) as unknown as PptxGenImport;
+    const PptxGen: PptxGenCtor = mod.default ?? mod;
 
+    // ✅ ここで “必要な機能を持つ” 型として扱う
     const pptx = new PptxGen();
     pptx.layout = "LAYOUT_WIDE";
 
-    // 表紙
-    addCoverSafe(pptx, projectName);
+    // 表紙（タイトルに projectName を使うなら、ここで差し替えもOK）
+    addCoverSafe(pptx);
 
     // ✅ 本文：全スライド生成（ページネーション込み）
     const slidesAll = paginateSlides(body.slides, 7);
 
-    // まずunknown typeのログ（任意）
+    // unknown type のログ（任意）
     slidesAll.forEach((s, idx) => {
-    const ct = s?.content_type;
-    const known = new Set([
+      const ct = s.content_type;
+      const known = new Set<SlideContentType>([
         "text_summary",
         "bullet_points",
         "issue_table",
         "issue_text",
         "table_and_text",
         "multi_chart_and_text",
-    ]);
-    if (!known.has(ct)) {
+        "text_simple",
+      ]);
+      if (ct && !known.has(ct)) {
+        const bodyObj = typeof s.body === "object" && s.body !== null ? (s.body as Record<string, unknown>) : null;
         console.warn("⚠️ unknown content_type:", {
-        idx,
-        title: safeStr(s?.title, 80),
-        content_type: ct,
-        bodyKeys: s?.body ? Object.keys(s.body) : null,
+          idx,
+          title: safeStr(s.title, 80),
+          content_type: ct,
+          bodyKeys: bodyObj ? Object.keys(bodyObj) : null,
         });
-    }
+      }
     });
 
-    // ✅ ここが本体：本文スライドを追加して描画
+    // ✅ 本文スライド生成
     slidesAll.forEach((s, idx) => {
-    const slide = pptx.addSlide();
+      const slide = pptx.addSlide();
 
-    // フッター/ヘッダー
-    addHeaderFooter(slide, String(idx + 1));
-
-    // ページタイトル（表紙があるので本文はP01からでOK）
-    addPageTitle(slide, idx + 1, normalizeText(s?.title ?? "No Title"));
-
-    // コンテンツ描画
-    renderContent(pptx, slide, s);
+      addHeaderFooter(slide, String(idx + 1));
+      addPageTitle(slide, idx + 1, normalizeText(s.title ?? "No Title"));
+      renderContent(pptx, slide, s);
     });
 
-    const raw = await pptx.write({ outputType: "nodebuffer" });
-    const buf = raw instanceof Buffer ? raw : Buffer.from(raw as any);
+    const raw: PptxWriteResult = await pptx.write({ outputType: "nodebuffer" });
+
+    const buf =
+      raw instanceof Buffer
+        ? raw
+        : raw instanceof Uint8Array
+        ? Buffer.from(raw)
+        : Buffer.from(new Uint8Array(raw));
 
     return new NextResponse(buf, {
       status: 200,
@@ -796,13 +829,16 @@ export async function POST(req: Request) {
         "Content-Disposition": `attachment; filename="weekly_report_${projectId}.pptx"`,
       },
     });
-  } catch (e: any) {
-    console.error("❌ /api/report-pptx failed:", e?.message);
-    console.error(e?.stack);
+  } catch (e: unknown) {
+    if (e instanceof Error) {
+      console.error("❌ /api/report-pptx failed:", e.message);
+      console.error(e.stack);
 
-    return NextResponse.json(
-      { error: e?.message ?? "unknown error", stack: e?.stack ?? null },
-      { status: 500 }
-    );
+      return NextResponse.json({ error: e.message, stack: e.stack ?? null }, { status: 500 });
+    }
+
+    console.error("❌ /api/report-pptx failed:", e);
+
+    return NextResponse.json({ error: "unknown error", stack: null }, { status: 500 });
   }
 }

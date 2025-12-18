@@ -18,13 +18,30 @@ function initFirestoreAdmin(): FirebaseFirestore.Firestore {
   const abs = path.isAbsolute(credPath) ? credPath : path.join(process.cwd(), credPath);
   if (!fs.existsSync(abs)) throw new Error(`service account json not found: ${abs}`);
 
-  const serviceAccount = JSON.parse(fs.readFileSync(abs, "utf-8")) as Record<string, unknown>;
+  const serviceAccount = JSON.parse(fs.readFileSync(abs, "utf-8")) as unknown;
+
+  // firebase-admin の cert は ServiceAccount 形状を要求するので、最低限のガードを通す
+  if (!isServiceAccount(serviceAccount)) {
+    throw new Error("service account json is invalid (missing required fields)");
+  }
 
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+    credential: admin.credential.cert(serviceAccount),
   });
 
   return admin.firestore();
+}
+
+function isServiceAccount(v: unknown): v is admin.ServiceAccount {
+  if (typeof v !== "object" || v === null) return false;
+  const o = v as Record<string, unknown>;
+
+  // cert() に必要になりがちなキー群を軽く確認（過剰には縛らない）
+  return (
+    typeof o.project_id === "string" &&
+    typeof o.client_email === "string" &&
+    typeof o.private_key === "string"
+  );
 }
 
 /* ================================
@@ -84,6 +101,7 @@ async function fetchLatestProjectStatusByEitherKey(
     .limit(1)
     .get()
     .catch(async () => {
+      // orderBy が無い/インデックス不足時のフォールバック
       const snap = await db.collection("project_status").where("project_id", "==", projectId).limit(1).get();
       return snap;
     });
@@ -139,12 +157,7 @@ function extractFourSummaries(summary: SummaryObject | undefined): {
 
 function buildFourSummaryText(summary: SummaryObject | undefined): string {
   const { wbs, task, chat, cost } = extractFourSummaries(summary);
-  return [
-    `[wbs]\n${wbs}`,
-    `[task]\n${task}`,
-    `[chat]\n${chat}`,
-    `[cost]\n${cost}`,
-  ].join("\n\n");
+  return [`[wbs]\n${wbs}`, `[task]\n${task}`, `[chat]\n${chat}`, `[cost]\n${cost}`].join("\n\n");
 }
 
 /* ================================
@@ -182,10 +195,7 @@ function decideGuildMasterMood(summaryText: string): GuildMasterMood {
 /* ================================
    Prompt (wbs/task/chat/cost ONLY)
 ================================ */
-function buildGuildMasterPrompt(params: {
-  projectId: string;
-  fourSummaryText: string;
-}): string {
+function buildGuildMasterPrompt(params: { projectId: string; fourSummaryText: string }): string {
   const { projectId, fourSummaryText } = params;
 
   return `
@@ -230,31 +240,69 @@ ${fourSummaryText}
 /* ================================
    Vertex generate
 ================================ */
+
+/**
+ * Vertex の型定義が古い場合 thinkingConfig が存在しないことがあるため、
+ * “安全に拡張できる”リクエスト型を自前で用意（any禁止）。
+ */
+type ThinkingConfig = { thinkingBudget: number };
+
+type VertexGenerateContentRequest = {
+  contents: Array<{
+    role: "user" | "model";
+    parts: Array<{ text: string }>;
+  }>;
+  generationConfig: {
+    temperature?: number;
+    topP?: number;
+    maxOutputTokens?: number;
+    // 型が追いついてない環境でもこのフィールドを載せたい
+    thinkingConfig?: ThinkingConfig;
+  };
+};
+
+type VertexCandidate = {
+  content?: {
+    parts?: Array<unknown>;
+  };
+};
+
+type VertexResponseShape = {
+  response: {
+    candidates?: VertexCandidate[];
+  };
+};
+
+function partText(p: unknown): string {
+  if (typeof p !== "object" || p === null) return "";
+  const o = p as Record<string, unknown>;
+  const t = o.text;
+  return typeof t === "string" ? t : "";
+}
+
 async function generateGuildMasterComment(prompt: string): Promise<string> {
   const vertex = getVertex();
   const model = vertex.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-  const run = async (p: string, maxOut: number) => {
-    const result = await model.generateContent({
+  const run = async (p: string, maxOut: number): Promise<string> => {
+    const req: VertexGenerateContentRequest = {
       contents: [{ role: "user", parts: [{ text: p }] }],
       generationConfig: {
         temperature: 0.2,
         topP: 0.9,
         maxOutputTokens: maxOut,
-
-        // ★ 重要：2.5 Flash の thinking を無効化
+        // ★ 重要：2.5 Flash の thinking を無効化（対応していない環境でも問題ないよう optional）
         thinkingConfig: { thinkingBudget: 0 },
-      } as any,
-    });
+      },
+    };
+
+    // Vertex SDK の戻り形状の“必要部分だけ”を見る（unknown→必要最小へ）
+    const resultUnknown: unknown = await model.generateContent(req);
+    const result = resultUnknown as VertexResponseShape;
 
     const cand = result.response.candidates?.[0];
     const parts = cand?.content?.parts ?? [];
-
-    // ★ parts を全部連結して text を回収（1個目決め打ちはやめる）
-    const text = parts
-      .map((pt: any) => (typeof pt?.text === "string" ? pt.text : ""))
-      .join("")
-      .trim();
+    const text = parts.map(partText).join("").trim();
 
     return text;
   };
@@ -263,7 +311,7 @@ async function generateGuildMasterComment(prompt: string): Promise<string> {
   const first = await run(prompt, 256);
   if (first) return first;
 
-  // ★ 空のときだけ 1回リトライ（可視文字を強制）
+  // 空のときだけ 1回リトライ（可視文字を強制）
   const retryPrompt =
     prompt +
     "\n\n# 追加制約（厳守）\n- 出力は必ず日本語の可視文字を含める（空白のみ禁止）\n- 形式「〜のじゃ。〜するのじゃ。」を守る\n";
@@ -271,10 +319,8 @@ async function generateGuildMasterComment(prompt: string): Promise<string> {
   return second.trim();
 }
 
-
 /* ================================
    Optional: strict post-check (light)
-   - 60〜80全角目安はLLMに守らせるが、空や長すぎだけ保険
 ================================ */
 function fallbackComment(summaryText: string): string {
   const mood = decideGuildMasterMood(summaryText);
@@ -294,13 +340,13 @@ export async function POST(): Promise<Response> {
 
     const statusDoc = await fetchLatestProjectStatusByEitherKey(db, projectId);
 
-    // ★入力は project_status.summary の4要約のみ
+    // 入力は project_status.summary の4要約のみ
     const fourSummaryText = buildFourSummaryText(statusDoc?.summary);
 
     const prompt = buildGuildMasterPrompt({ projectId, fourSummaryText });
     const comment = await generateGuildMasterComment(prompt);
 
-    // ★ 表情は API 側で決定的に判定（LLMに任せない）
+    // 表情は API 側で決定的に判定（LLMに任せない）
     const mood = decideGuildMasterMood(fourSummaryText);
 
     const res: ResBody = {

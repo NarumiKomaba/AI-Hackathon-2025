@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import admin from "firebase-admin";
 import fs from "node:fs";
 import path from "node:path";
-import { VertexAI } from "@google-cloud/vertexai";
-
+import { GoogleGenAI } from "@google/genai";
 export const runtime = "nodejs";
 
 /* ================================
@@ -33,25 +32,6 @@ function initFirestoreAdmin() {
 }
 
 /* ================================
-   Vertex init
-================================ */
-function getVertex() {
-  const project = process.env.GCP_PROJECT_ID;
-  const location = process.env.GCP_LOCATION;
-  if (!project) throw new Error("GCP_PROJECT_ID is not set");
-  if (!location) throw new Error("GCP_LOCATION is not set");
-  return new VertexAI({ project, location });
-}
-
-/* ================================
-   Types
-================================ */
-type ReqBody = {
-  projectId?: string;
-  note?: string;
-};
-
-/* ================================
    Firestore helpers
 ================================ */
 async function fetchByProjectEitherKey(
@@ -79,8 +59,8 @@ async function fetchByProjectEitherKey(
   return snap2.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-function toLines(arr: any[], label: string, max = 200) {
-  const sliced = (arr ?? []).slice(0, max);
+function toLines(arr: unknown[], label: string, max = 200) {
+  const sliced = arr.slice(0, max);
   if (sliced.length === 0) return `${label}: (0件)`;
   return [
     `${label}: (${sliced.length}件)`,
@@ -130,6 +110,13 @@ function buildPmoWeeklySlidesPrompt(params: {
 4. **注意事項の遵守*:
    - 注意事項に従わない場合はペナルティを与えます。
    - 後述する分析・生成ルールに従わない場合はペナルティを与えます。
+5. **chartsは必須*:
+  - charts を空配列にしてはいけない。
+  - charts フィールドを省略してはいけない。
+  - 数値データが不足・不明な場合は、論理的に妥当な仮定値を生成してよい。
+    その場合：
+    - values は 0〜100 または工数・金額として自然な整数
+    - labels は 1〜5 件
 
 # 入力データ
 1. [WBSデータ]:
@@ -258,27 +245,29 @@ function parseSlidesJsonFromResponse(text: string) {
 /* ================================
    Vertex generate
 ================================ */
-async function generateWeeklySlidesJson(prompt: string) {
-
-  const vertex = getVertex();
-  const model = vertex.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-  const result = await model.generateContent({
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
+export async function generateWeeklySlidesJson(prompt: string) {
+  const ai = new GoogleGenAI({
+    vertexai: true,
+    project: process.env.GCP_PROJECT_ID!,
+    location: process.env.GCP_LOCATION!,
   });
 
-  const text =
-    result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  const resp = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    config: {
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  });
+
+  const text = resp.text ?? "";
   return { rawText: text, ...parseSlidesJsonFromResponse(text) };
 }
-
 /* ================================
    Route
 ================================ */
-export async function POST(req: Request) {
+export async function POST() {
   try {
-
-    const body = (await req.json()) as ReqBody;
     const projectId = "dummy_projectId";
     const db = initFirestoreAdmin();
 
@@ -303,10 +292,14 @@ export async function POST(req: Request) {
       projectId,
       slides,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("❌ report generation failed:", e);
+
+    const message =
+      e instanceof Error ? e.message : "unknown error";
+
     return NextResponse.json(
-      { error: e?.message ?? "unknown error" },
+      { error: message },
       { status: 500 }
     );
   }
