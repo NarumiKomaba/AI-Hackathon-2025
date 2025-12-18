@@ -1,9 +1,17 @@
 "use client";
 
-import { useRef, useState, Suspense, ChangeEvent } from "react";
+import { useRef, useState, Suspense, type ChangeEvent, type DragEvent} from "react";
 import ProjectQuestLayout from "@/components/layout/ProjectQuestLayout";
 import { useSearchParams, useRouter } from "next/navigation";
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
+import * as XLSX from 'xlsx';
+import { setMaxIdleHTTPParsers } from "http";
+import {
+  getFirebaseStorage,
+  getFirebaseFirestore,
+} from "@/lib/firebaseClient";
+import { collection, addDoc, serverTimestamp, writeBatch, doc } from "firebase/firestore";
+import { Timestamp } from "firebase-admin/firestore";
 
 type Quest = {
   id: string;
@@ -18,29 +26,141 @@ const MOCK_QUESTS: Quest[] = [
   { id: "onprem-llm", title: "オンプレ LLM 検証クエスト", recommendedLevel: 24, elapsedDays: 60 },
 ];
 
+// Excelの各行の構造を定義
+interface WbsRow {
+  "No": string;
+  "サブシス": string;
+  "工程": string; // 任意項目（空の可能性がある場合）
+  "機能分類": string;
+  "機能": string;
+  "備考":string;
+  "予定開始日": string;
+  "予定終了日": string;
+  "実績開始日": string;
+  "実績終了日": string;
+  "ステータス": string;
+  "状況": string;
+  "担当者名": string;
+}
+
 function GuildSubmitPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
-
   const questIdFromQuery = searchParams.get("questId");
-
   const [selectedQuestId, setSelectedQuestId] = useState(
     questIdFromQuery ?? MOCK_QUESTS[0].id
   );
   const [fileName, setFileName] = useState("");
   const [note, setNote] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
   const selectedQuest =
     MOCK_QUESTS.find((q) => q.id === selectedQuestId) ?? MOCK_QUESTS[0];
 
+  // // ファイル設定を共通化（クリック/ドロップ両方から呼ぶ）
+  // const applySelectedFiles = (files: FileList | File[] | null) => {
+  //   if (!files || files.length === 0) {
+  //     setSelectedFiles([]);
+  //   } else {
+  //     const arr = Array.from(files);
+  //     setSelectedFiles(arr);
+  //   }
+  //   setMessage("");
+  // };
+
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    const files = e.target.files;
     if (file) setFileName(file.name);
+    if (!files || files.length === 0) {
+      setSelectedFiles([]);
+    } else {
+      const arr = Array.from(files);
+      setSelectedFiles(arr);
+    }
+
   };
 
-  const handleSubmit = () => alert("提出");
+  // const handleSubmit = () => alert("提出");
+  const handleSubmit = async() => {
+    if (fileName.length === 0) {
+      alert("ファイルを選択してください。");
+      return;
+    }
+
+    setUploading(true);
+    setMessage("");
+    alert("ファイル名：「" +fileName+ "」を提出しますか？");
+
+     try {
+
+      for (const [index, file] of selectedFiles.entries()){
+
+        // 1. ファイルをArrayBufferとして読み込み
+      const data = await file.arrayBuffer();
+
+      // 2. Excelデータの解析
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0]; // 最初のシートを対象
+      const sheet = workbook.Sheets[sheetName];
+
+      // 3. JSONに変換（ヘッダー行がある前提）
+      const jsonData = XLSX.utils.sheet_to_json<WbsRow>(sheet);
+
+      // 3. 後続の処理も型安全に
+      await saveToFirestore(jsonData, file.name);
+
+      alert("成功しました");
+      }
+    } catch (err) {
+      console.error("handleCreateQuestDraft error:", err);
+      setMessage("資料のアップロードに失敗しました...");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const saveToFirestore = async (data: WbsRow[], fileName: string) => {
+
+    const storage = getFirebaseStorage();
+    const db = getFirebaseFirestore();
+    const batch = writeBatch(db);
+    const collectionRef = collection(db, "wbs_items");
+
+    data.forEach((item) => {
+      // item.名前 のように、入力補完（IntelliSense）が効くようになります
+      const docData = {
+        projectId: selectedQuestId,
+        number: item["No"] || 0,
+        subSystem: item["サブシス"] || "不明",
+        phase: item["工程"] || "不明", // 任意項目（空の可能性がある場合）
+        category: item["機能分類"] || "不明",
+        feature: item["機能"] || "不明",
+        description:item["備考"] || "不明",
+        parent_no: null,
+        level: 1,
+        plan_start_date: serverTimestamp(),
+        plan_end_date: serverTimestamp(),
+        actual_start_date: serverTimestamp(),
+        actual_end_date: serverTimestamp(),
+        status: item["ステータス"] || "不明",
+        progress_ratio: item["状況"] || "不明",
+        assignee: item["担当者名"] || "不明",
+        snapshot_date: serverTimestamp(),
+        source_file_name: fileName,
+        imported_at: serverTimestamp(),
+      };
+      const newDocRef = doc(collectionRef);
+      batch.set(newDocRef, docData);
+    });
+    await batch.commit();
+  };
+
+
 
   const [isReporting, setIsReporting] = useState(false);
   const [reportSummary, setReportSummary] = useState("");
@@ -105,6 +225,7 @@ function GuildSubmitPageInner() {
       setIsReporting(false); // ★ loading終了
     }
   };
+  
 
   return (
     <ProjectQuestLayout>
@@ -162,6 +283,21 @@ function GuildSubmitPageInner() {
                     className="hidden"
                     onChange={handleFileChange}
                   />
+
+                  {selectedFiles.length > 0 && (
+                  <div className="mt-3 text-left max-h-24 overflow-y-auto text-[11px] text-gray-800">
+                    <p className="font-semibold mb-1">
+                      選択中: {selectedFiles.length} ファイル
+                    </p>
+                    <ul className="list-disc pl-4 space-y-0.5">
+                      {selectedFiles.map((file) => (
+                        <li key={file.name}>
+                          {file.name}（{file.size} bytes）
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 </div>
               </div>
 
