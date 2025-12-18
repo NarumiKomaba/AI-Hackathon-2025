@@ -4,6 +4,17 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ProjectQuestLayout from "@/components/layout/ProjectQuestLayout";
+import { getFirebaseFirestore } from "@/lib/firebaseClient";
+import {
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  collection,
+  addDoc,
+  serverTimestamp,
+  where,
+} from "firebase/firestore";
 
 type BoardQuestStatus = "参加中" | "募集中";
 
@@ -29,6 +40,49 @@ type BoardQuest = {
   expGains: string[];
   partySlots: PartySlot[];
 };
+
+// Firestoreから取得する際の型（結合前）
+interface FirestoreQuestDoc {
+    id: string; 
+    name: string;
+    // recommendedLevel: number; // BoardQuestに必要なフィールドを追加
+    // durationDays: number;     // BoardQuestに必要なフィールドを追加
+    status: BoardQuestStatus; // BoardQuestに必要なフィールドを追加
+    purpose: string;        // BoardQuestに必要なフィールドを追加
+    success_condition: string[];     // BoardQuestに必要なフィールドを追加
+    deliverables: string[];   // BoardQuestに必要なフィールドを追加
+    overview: string;          // BoardQuestに必要なフィールドを追加
+    rewards: string[];        // BoardQuestに必要なフィールドを追加
+    experiece_gains: string[];       // BoardQuestに必要なフィールドを追加
+    
+    // ★ 修正点: テンプレートフィールドを明示的に定義
+    partySlotsTemplate?: PartySlot[]; 
+}
+
+interface FirestorePartyMemberDoc {
+    member_id: string; // メンバーIDまたはスロットID
+    projectId: string;
+    role: string;
+    member_name: string;
+    // isYou: boolean;
+}
+
+// 既存のパーティスロットのテンプレート（FirestoreQuestDoc に含まれていると仮定）をベースにする
+const partySlotsTemplate: PartySlot[] =  [
+      {
+        id: "slot-1",
+        role: "勇者",
+        name: "駒場（あなた）",
+        isYou: true,
+        filled: true,
+      },
+      { id: "slot-2", role: "戦士", name: "大和", filled: true },
+      { id: "slot-3", role: "魔法使い", name: "小﨑", filled: true },
+      { id: "slot-4", role: "僧侶", name: "募集中", filled: false },
+      { id: "slot-5", role: "盗賊", name: "募集中", filled: false },
+      { id: "slot-6", role: "吟遊詩人", name: "募集中", filled: false },
+    ];
+
 
 const MOCK_QUESTS: BoardQuest[] = [
   {
@@ -143,6 +197,9 @@ export default function BoardPage() {
   const selected = quests.find((q) => q.id === selectedId)!;
   const partyScrollRef = useRef<HTMLDivElement | null>(null);
   const [showPartyArrow, setShowPartyArrow] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
 
   const handleJoin = () => {
     setQuests((prev) =>
@@ -175,6 +232,107 @@ export default function BoardPage() {
     const el = partyScrollRef.current;
     if (!el) return;
 
+    
+
+    const fetchQuests = async () => {
+      const db = getFirebaseFirestore();
+
+      // 1. testProjects (クエスト) の取得
+      // ドキュメントIDを取得するため、map内で doc.id も取得します。
+      const firestoreQuests: FirestoreQuestDoc[] = await getDocs(
+        collection(db, "testProjects")
+      ).then((snapshot) =>
+        snapshot.docs.map((doc) => {
+          // Doc IDをデータに含める
+           return {
+            id: doc.id, 
+            ...(doc.data() as Omit<FirestoreQuestDoc, 'id'>)
+          };
+        })
+      );
+
+      const col_party = collection(db, "party_members");
+      // const combinedQuests = MOCK_QUESTS;
+      // ★ 修正点1: MOCK_QUESTSをベースに新しい配列を作成し、重複を防ぐ
+      const combinedQuests: BoardQuest[] = [...MOCK_QUESTS];
+
+      // 2. 各クエストに対してパーティメンバーを取得し、データを結合する
+      for (const questDoc of firestoreQuests) {
+        // すでに combinedQuests に同じ ID が存在する場合はスキップ（重複ガード）
+        if (combinedQuests.some(q => q.id === questDoc.id)) continue;
+        // a. 該当クエストのパーティメンバーを取得
+        const q_party = query(col_party, where("projectId", "==", questDoc.id));
+        
+        // party_members の取得と変換
+        const partyMemberDocs: FirestorePartyMemberDoc[] = await getDocs(q_party).then(
+            (snapshot) =>
+                snapshot.docs.map((doc) => {
+                    // ドキュメントIDをメンバーIDとして使用
+                    return {
+                        id: doc.id,
+                        ...(doc.data() as Omit<FirestorePartyMemberDoc, 'id'>),
+                    };
+                }) as FirestorePartyMemberDoc[]
+        );
+
+        // b. PartySlot の構築ロジック（ここが重要）
+        const finalPartySlots: PartySlot[] = [];
+
+        
+        // テンプレートスロットをコピーし、取得したメンバーデータで上書きする
+        partySlotsTemplate.forEach(templateSlot => {
+            const member = partyMemberDocs.find(
+                (m) => m.role === templateSlot.role
+            ); // 例: roleで紐付ける
+
+            if (member) {
+                // メンバーが見つかった場合、そのメンバー情報でスロットを埋める
+                finalPartySlots.push({
+                    ...templateSlot,
+                    id: member.member_id, // DBからのユニークIDを使用
+                    name: member.member_name,
+                    filled: true,
+                    isYou: true,
+                });
+            } else {
+                // メンバーが見つからなかった場合、テンプレートの空きスロットをそのまま使用
+                finalPartySlots.push({
+                    ...templateSlot,
+                    filled: false,
+                    name: "募集中"
+                });
+            }
+        });
+
+        // c. 結合された BoardQuest オブジェクトの作成
+        const finalQuest: BoardQuest = {
+            id: questDoc.id,
+            title: questDoc.name,
+            recommendedLevel: 50,
+            durationDays: 100,
+            status: questDoc.status,
+            objective: questDoc.purpose,
+            conditions: questDoc.success_condition,
+            deliverables: questDoc.deliverables,
+            summary: questDoc.overview,
+            rewards: questDoc.rewards,
+            expGains: questDoc.experiece_gains,
+            // BoardQuestの型に合致させるために PartySlot[] を追加
+            partySlots: finalPartySlots,
+
+        };
+
+        combinedQuests.push(finalQuest);
+
+      }
+
+      // 3. setQuests の実行
+    // ここで、この関数を呼び出すコンポーネントの setQuests を呼び出す必要があります。
+    setQuests([]);
+    setQuests(combinedQuests);
+    return combinedQuests;
+};
+    fetchQuests();
     const check = () => {
       setShowPartyArrow(el.scrollWidth > el.clientWidth + 1);
     };
@@ -182,7 +340,7 @@ export default function BoardPage() {
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
-  }, [selectedId]);
+  }, []);
 
   return (
     <ProjectQuestLayout>
