@@ -347,11 +347,11 @@ export default function QuestManagementPage() {
             <div className="w-full flex justify-end pt-3">
               <button
                 type="button"
-                onClick={() => router.push("/quest/submit")}
-                className="relative w-70 h-16 md:w-66 md:h-20"
+                onClick={() => router.push(`/quest/submit?questId=${selectedQuestId}`)}
+                className="relative w-70 h-16 md:w-66 md:h-20 cursor-pointer"
               >
                 <Image
-                  src="/images/提出-off.png"
+                  src="/images/sub-blue.png"
                   alt="ギルドマスターに提出"
                   fill
                   className="object-contain"
@@ -377,7 +377,7 @@ function TabButton(props: {
     <button
       type="button"
       onClick={props.onClick}
-      className="relative w-40 h-11 md:w-48 md:h-12 flex-shrink-0"
+      className="relative w-40 h-11 md:w-48 md:h-12 flex-shrink-0 cursor-pointer"
     >
       <Image
         src={props.active ? "/images/Group 58.png" : "/images/Group 59.png"}
@@ -755,7 +755,7 @@ function TaskListView({ tasks }: { tasks: Task[] }) {
     <div className="h-full flex flex-col gap-3 pt-4">
       {/* 見出し行（ProgressView と同じ SectionHeading 構成） */}
       <div className="flex items-center justify-between">
-        <SectionHeading>今週のクエスト達成状況（モック）</SectionHeading>
+        <SectionHeading>今週のクエスト達成状況</SectionHeading>
         <p className="text-xs text-gray-500">
           {safePage + 1}/{totalPages} ページ（全 {filteredTasks.length} 件）
         </p>

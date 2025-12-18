@@ -419,7 +419,7 @@ export default function BoardPage() {
             <button
               type="button"
               onClick={() => router.push("/quest/new")}
-              className="relative w-10 h-10"
+              className="relative w-10 h-10 cursor-pointer"
             >
               <Image
                 src="/images/Group 18.png"

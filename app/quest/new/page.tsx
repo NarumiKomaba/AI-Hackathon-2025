@@ -14,6 +14,7 @@ import {
   getFirebaseFirestore,
 } from "@/lib/firebaseClient";
 import ProjectQuestLayout from "@/components/layout/ProjectQuestLayout";
+import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 
 // ★ 新しいクエスト案の形式に合わせる
 type QuestDraft = {
@@ -158,6 +159,10 @@ export default function NewQuestPage() {
 
   return (
     <ProjectQuestLayout>
+      {uploading && (
+        <LoadingOverlay show={uploading} />
+      )}
+
       <div className="h-full px-8 py-6">
         <div className="h-full bg-white rounded-xl shadow-md px-8 py-6 flex gap-8">
           {/* 左カラム：フォーム */}
