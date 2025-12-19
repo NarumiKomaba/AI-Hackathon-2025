@@ -324,7 +324,7 @@ export default function NewQuestPage() {
               >
                 {/* 画像があるならこれに統一（参考の make-blue.png を流用） */}
                 <img
-                  src="/images/make-blue.png"
+                  src="/images/ai-blue.png"
                   alt="この内容でクエスト案を作成"
                   className={`h-20 w-auto select-none cursor-pointer ${
                     selectedFiles.length === 0 || uploading ? "opacity-60" : ""
