@@ -217,7 +217,7 @@ export default function QuestManagementPage() {
   const detail = QUEST_DETAILS.find((d) => d.questId === selectedQuestId)!;
   const tasks = TASKS_BY_QUEST[selectedQuestId] ?? [];
 
-    // ▼▼▼ ここに追加：選択クエストが変わったらAIで一言生成 ▼▼▼
+  // ▼▼▼ ここに追加：選択クエストが変わったらAIで一言生成 ▼▼▼
   useEffect(() => {
     let canceled = false;
 
@@ -255,10 +255,10 @@ export default function QuestManagementPage() {
           const msg =
             typeof json === "object" && json !== null
               ? String(
-                  (json as { detail?: unknown; error?: unknown }).detail ??
-                    (json as { detail?: unknown; error?: unknown }).error ??
-                    "failed"
-                )
+                (json as { detail?: unknown; error?: unknown }).detail ??
+                (json as { detail?: unknown; error?: unknown }).error ??
+                "failed"
+              )
               : "failed";
           throw new Error(msg);
         }
@@ -317,8 +317,8 @@ export default function QuestManagementPage() {
                   quest.status === "進行中"
                     ? "bg-[#B8301A] text-white"
                     : quest.status === "未着手"
-                    ? "bg-[#777777] text-white"
-                    : "bg-[#004A80] text-white";
+                      ? "bg-[#777777] text-white"
+                      : "bg-[#004A80] text-white";
 
                 return (
                   <button
@@ -434,7 +434,20 @@ export default function QuestManagementPage() {
             </div>
 
             {/* ギルドマスターに提出ボタン（ベージュの外・右寄せ） */}
-            <div className="w-full flex justify-end pt-3">
+            <div className="w-full flex justify-end gap-4 pt-3">
+              <button
+                type="button"
+                onClick={() => router.push(`/quests/${selectedQuestId}/report`)}
+                className="relative h-16 md:h-20 flex items-center justify-center px-6 py-2 bg-[#5C3B23] text-white font-bold rounded-lg shadow-lg hover:bg-[#7A4E33] transition-colors"
+                title="AI評議会へ移動"
+              >
+                <span className="text-xl mr-2">🏰</span>
+                <div className="text-left leading-tight">
+                  <div className="text-sm opacity-80">Guild Council</div>
+                  <div className="text-lg">評議会へ</div>
+                </div>
+              </button>
+
               <button
                 type="button"
                 onClick={() => router.push(`/quest/submit?questId=${selectedQuestId}`)}
@@ -522,8 +535,8 @@ function ProgressView({
     mood === "smile"
       ? "/images/master_smile.png"
       : mood === "strict"
-      ? "/images/master.png"
-      : "/images/master_smile.png";
+        ? "/images/master.png"
+        : "/images/master_smile.png";
 
   return (
     <div className="flex flex-col gap-6 pt-4">
@@ -784,8 +797,8 @@ function GanttDotWithTooltip({ task }: { task: Task }) {
     task.status === "完了"
       ? "bg-[#1C7C3B]" // グリーン
       : task.status === "進行中"
-      ? "bg-[#0071A9]" // ブルー
-      : "bg-[#C4C4C4]"; // グレー（未着手）
+        ? "bg-[#0071A9]" // ブルー
+        : "bg-[#C4C4C4]"; // グレー（未着手）
 
   return (
     <div className="relative group">
@@ -1034,8 +1047,8 @@ function TaskCard({
   const topRightLabelSrc = isDelayed
     ? "/images/Group 19.png" // 遅延
     : task.status === "未着手"
-    ? "/images/Group 20.png" // 未完了
-    : "/images/Group 21.png"; // 順調（進行中 or 完了でもOKならここ）
+      ? "/images/Group 20.png" // 未完了
+      : "/images/Group 21.png"; // 順調（進行中 or 完了でもOKならここ）
 
   return (
     <button
