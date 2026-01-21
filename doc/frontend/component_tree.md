@@ -19,7 +19,9 @@ components/
     │   ├── QuestListSidebar.tsx
     │   ├── ProgressView.tsx    # 進捗タブの中身
     │   ├── GanttView.tsx       # ガントチャートタブの中身
-    │   └── TaskListView.tsx    # タスクリストタブの中身
+    │   ├── TaskListView.tsx    # タスクリストタブの中身
+    │   └── report/             # AI評議会ルーム
+    │       └── page.tsx        # 評議会チャットUI & コントローラー
     └── ...
 ```
 

@@ -30,6 +30,16 @@
     *   概要：モジュールの役割と責任。
     *   **主要機能・クラス・メソッド**: 関数名、引数、戻り値、処理内容を具体的に記述。
     *   依存関係：他モジュールとの依存性とその影響。
+*   **3.3 AI・LLM実装設計（Project Quest独自）**:
+    *   **AIモデル設定**: 使用モデル、パラメータ設定（Temperature, Token limits）。
+    *   **プロンプトエンジニアリング**: 
+        *   **System Prompt**: キャラクター人格（PMO, 営業など）の定義内容。
+        *   **Chain of Thought**: 思考プロセスを含めるか、Json Modeを強制するか等の戦略。
+    *   **オーケストレーション**: 複数AI間の対話フロー制御ロジック（評議会機能など）。
+*   **3.4 フロントエンド設計方針（Next.js App Router）**:
+    *   **Rendering Strategy**: Server Components (RSC) と Client Components (CC) の分割指針。
+    *   **Routing & Layouts**: ディレクトリ構成とLayoutのネスト構造。
+    *   **State Management**: URL Search Params, Context, Local State の使い分け。
 
 ### 4. データ設計
 *   **4.1 データ構造**: 
@@ -89,6 +99,3 @@
 *   **一貫性の確保**: 全章にわたって整合性を保ち、重複や矛盾を避ける。
 
 ---
-
-### 入力ソースコード群
-(ここにソースコードを記載)

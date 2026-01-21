@@ -108,4 +108,42 @@ Next.js App RouterのRoute Handlersを使用したAPIエンドポイント定義
 *   Content-Type: `application/vnd.openxmlformats-officedocument.presentationml.presentation`
 *   Body: Binary data of .pptx file.
 
+### 2.4 Council Meeting API
+*   **Path**: `/api/council-meeting`
+*   **Method**: `POST`
+*   **Summary**: 4人のAI評議会メンバーが議論を行い、結論と具体的なアクションプランを出力する。
+*   **Note**: `maxOutputTokens` を制限し、Thinking Budgetを0に設定して高速化している。
+
+#### Request Body
+```json
+{
+  "questId": "core-system",
+  "topic": "進捗遅延について",
+  "history": [
+    { "speakerId": "pmo", "name": "PMO", "message": "リスクが高まっています。" },
+    { "speakerId": "user", "name": "YOU", "message": "具体策はあるか？" }
+  ]
+}
+```
+
+#### Response (Success: 200 OK)
+```json
+{
+  "logs": [
+    {
+      "speakerId": "sales",
+      "name": "営業",
+      "message": "顧客には正直に話しましょう！",
+      "icon": "/images/council_sales.png"
+    },
+    {
+      "speakerId": "super_pm",
+      "name": "Super PM",
+      "message": "では、一部機能をPhase2へ回す方向で調整する。",
+      "icon": "/images/council_super_pm.png"
+    }
+  ]
+}
+```
+
 ---
