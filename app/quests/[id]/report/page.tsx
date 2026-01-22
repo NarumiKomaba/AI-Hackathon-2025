@@ -24,22 +24,22 @@ type QuestData = {
 };
 
 const MEMBER_IMAGES: Record<string, string> = {
-    pmo: "/images/council_pmo.png",       // 要: 画像用意 (眼鏡の男性)
-    manager: "/images/council_manager.png", // 要: 画像用意 (気弱なおじさん)
-    sales: "/images/council_sales.png",     // 要: 画像用意 (派手な女性)
-    super_pm: "/images/master_smile.png",   // 既存のマスター画像
+    pmo: "/images/council_pmo.png",
+    manager: "/images/council_manager.png",
+    sales: "/images/council_sales.png",
+    super_pm: "/images/master_smile.png",
 };
 
 const MEMBER_NAMES: Record<string, string> = {
     pmo: "機律 厳 (PMO)",
     manager: "板挟 課長",
     sales: "調子 良い子",
-    super_pm: "GUILD MASTER",
+    super_pm: "ギルドマスター",
 };
 
 export default function CouncilRoomPage() {
     const params = useParams();
-    const questId = params.id as string;
+    const questId = "core-system"; // 暫定的に固定: params.id as string;
     const bottomRef = useRef<HTMLDivElement>(null);
 
     const [loading, setLoading] = useState(false);
@@ -113,9 +113,10 @@ export default function CouncilRoomPage() {
                 await new Promise((r) => setTimeout(r, 1200));
             }
 
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            setLogs((prev) => [...prev, { speakerId: "super_pm", message: "（通信障害により会議は中断された…）" }]);
+            const errorMsg = e.message || "Unknown Error";
+            setLogs((prev) => [...prev, { speakerId: "super_pm", message: `（通信障害により会議は中断された… 詳細: ${errorMsg}）` }]);
         } finally {
             setLoading(false);
         }
@@ -209,7 +210,7 @@ export default function CouncilRoomPage() {
                 </div>
 
                 {/* Right Pane: The Council Room (Chat) */}
-                <div className="w-2/3 bg-[url('/images/council_room_bg.jpg')] bg-cover bg-center rounded-xl border-4 border-[#222] shadow-2xl relative overflow-hidden flex flex-col">
+                <div className="w-2/3 bg-[url('/images/council_room_bg.png')] bg-cover bg-center rounded-xl border-4 border-[#222] shadow-2xl relative overflow-hidden flex flex-col">
                     <div className="absolute inset-0 bg-black/60" />
 
                     {/* Chat Area */}
@@ -285,7 +286,7 @@ function ChatMessage({
 }) {
     const isUser = log.speakerId === "user";
     const imgSrc = isUser ? "/images/user_hero.png" : (MEMBER_IMAGES[log.speakerId] ?? "/images/master_smile.png");
-    const name = isUser ? "YOU (Guild Leader)" : (MEMBER_NAMES[log.speakerId] ?? "Unknown");
+    const name = isUser ? "勇者" : (MEMBER_NAMES[log.speakerId] ?? "Unknown");
 
     const nameColor =
         log.speakerId === "pmo" ? "text-blue-300" :
@@ -302,6 +303,7 @@ function ChatMessage({
                         src={imgSrc}
                         alt={log.speakerId}
                         fill
+                        sizes="56px"
                         className="object-cover"
                         onError={(e) => {
                             e.currentTarget.style.display = 'none';

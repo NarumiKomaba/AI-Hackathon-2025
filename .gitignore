@@ -37,3 +37,7 @@ next-env.d.ts
 
 # User-specific
 GEMINI.md
+service-account.json
+lint_output.txt
+check_fixed_data.js
+*.log

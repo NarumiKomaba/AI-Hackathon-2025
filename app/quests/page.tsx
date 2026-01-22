@@ -300,6 +300,7 @@ export default function QuestManagementPage() {
               src="/images/blue-back.png"
               alt="メニュー背景"
               fill
+              sizes="320px"
               className="object-fill"
             />
           </div>
@@ -331,6 +332,7 @@ export default function QuestManagementPage() {
                       src={isActive ? "/images/Group 54.png" : "/images/Group 40.png"}
                       alt={quest.title}
                       fill
+                      sizes="320px"
                       className="object-fill"
                     />
 
@@ -377,6 +379,7 @@ export default function QuestManagementPage() {
               src="/images/見出し@144x.png"
               alt="見出し"
               fill
+              sizes="1200px"
               className="object-contain"
             />
             <div className="absolute inset-0 flex flex-col justify-center px-12">
@@ -457,6 +460,7 @@ export default function QuestManagementPage() {
                   src="/images/sub-blue.png"
                   alt="ギルドマスターに提出"
                   fill
+                  sizes="264px"
                   className="object-contain"
                 />
               </button>
@@ -496,6 +500,7 @@ function TabButton(props: {
         src={props.active ? "/images/Group 58.png" : "/images/Group 59.png"}
         alt={props.label}
         fill
+        sizes="200px"
         className="object-contain"
       />
       <span
@@ -582,6 +587,7 @@ function ProgressView({
               src={masterSrc}
               alt="ギルドマスター"
               fill
+              sizes="176px"
               className="object-contain"
             />
           </div>
