@@ -16,6 +16,7 @@
     *   3.2 モジュール詳細
     *   3.3 AI・LLM実装設計
     *   3.4 フロントエンド設計方針
+    *   3.5 AI評議会 設計思想 (The Council Room Philosophy)
 
 ## 4. データ設計
 
@@ -354,22 +355,14 @@ graph TD
 ### 3.3 AI・LLM実装設計
 
 *   **AIモデル設定**:
-    *   **Model**: `gemini-2.5-flash-001`
-    *   **Temperature**: `0.7` (Creative output for roleplay)
-    *   **MaxOutputTokens**: `800` (Optimization for speed)
-    *   **Thinking Budget**: `0` (Disable intense reasoning for speed)
+    *   **Model**: `gemini-2.5-flash`
+    *   **Temperature**: `0.7` (キャラ立ちをさせるための適度な創造性)
+    *   **MaxOutputTokens**: `2000` (議論が白熱しても途切れない十分な枠)
+    *   **Thinking Budget**: `0` (**重要: 爆速レスポンスのための思考プロセススキップ**)
 
-*   **プロンプトエンジニアリング**:
-    *   **System Prompt**: 
-        > "あなたは以下の4人のキャラクターになりきって... 必ず JSON 形式の配列でレスポンスを返してください... [ルール: 意見の対立を含めること]"
-    *   **Schema Definition (TypeScript)**:
-        ```typescript
-        interface AIAgentResponse {
-            speakerId: "pmo" | "manager" | "sales" | "super_pm";
-            message: string;
-        }
-        // Response is Array<AIAgentResponse>
-        ```
+*   **多層パース・名寄せロジック (The Absolute Parser)**:
+    *   **不完全JSONの修復**: トークン切れ等でJSONが途切れた際も、ブラケットを自動補完してパースを完遂させる。
+    *   **ID正規化 (Identity Mapping)**: AIが「機律 厳」「PMO」「pmo」など、どのような表記で返してきても、フロントエンドのアイコンID (`pmo`, `sales`, `manager`, `super_pm`) に名寄せする。
 
 *   **オーケストレーション (Mermaid)**:
     ```mermaid
@@ -392,6 +385,28 @@ graph TD
 *   **Server/Client Boundary**:
     *   `app/quests/[id]/report/page.tsx` is marked with `"use client"`.
     *   Data fetching happens via `useEffect` (Client-side) due to Real-time requirements and Firestore Client SDK usage.
+
+### 3.5 AI評議会 設計思想 (The Council Room Philosophy)
+
+本システムの中核である「AI評議会」は、単なるチャットボットではなく、以下の高度な設計思想に基づいて構築されている。
+
+#### 1. 爆速思考 (Explosive Speed)
+`gemini-2.5-flash` のポテンシャルを最大限に引き出すため、`thinkingBudget: 0` を設定。10秒以上かかる「推論待ち」を排除し、平均3〜5秒でのリアルタイムな議論展開を実現。
+
+#### 2. データの写像 (Fact Projection)
+AIが一般論に逃げるのを防ぐため、WBSのタスク名、担当者名、数値をプロンプトに動的に注入。
+- **ルール**: 「発言内に必ずData内の具体的キーワードを1つ以上含めること」を義務付け、現場感覚のある議論を強制。
+
+#### 3. 限界突破 (Desperation Move / Breakthrough)
+プロジェクトが深刻な遅延（AGI低下）に陥った際、またはユーザーが窮状を訴えた際に発動。
+- **思想**: 通常のマネジメントでは解決不能な事態において、予算の付け替え、リソースの奪取、スコープの強行縮小など、リスクを承知の「極端な一手」をAIが提案する。
+
+#### 4. NOイエスマン規定 (Zero Compliance Policy)
+ユーザー（勇者）への忖度を禁止。
+- **ルール**: どんな提案に対しても、必ず「その案が払うべき代償（デメリット）」をセットで指摘させ、安易な決定を許さない。
+
+#### 5. 議長としてのギルドマスター (The Facilitator)
+ギルドマスター（Super PM）は自ら結論を出さず、各員の議論を「AGI（進捗）への期待値」と「HP（資源）へのダメージ」という数値的な予測へと変換し、最終判断をユーザーに預ける。
 
 ## 7. 信頼性・運用監視設計
 
@@ -467,7 +482,11 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID="..."
 *   **Unit Testing**: 現在テストコードは未整備。主要なロジック（WBSパース等）に対してJest等の導入を推奨。
 *   **E2E Testing**:
     *   **Tool**: Playwright
-    *   **Coverage**: ページ遷移 (Home -> Quest Detail -> Report)、主要ボタン動作確認。
+    *   **Scenario**: 
+        1. クエスト一覧から個別クエストへの遷移検証。
+        2. 評議会ページ（Report）での「議論開始」ボタンによるAI応答生成の疎通。
+        3. ユーザー投稿に対するUIのリアクション確認。
+        4. 深刻な遅延シナリオにおける「限界突破案」の出現確認。
 
 ### 9.2 デプロイフロー
 

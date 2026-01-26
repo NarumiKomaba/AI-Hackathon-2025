@@ -40,4 +40,13 @@ GEMINI.md
 service-account.json
 lint_output.txt
 check_fixed_data.js
+benchmark_*.js
+simulate_council.js
+verify_council*.js
 *.log
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
