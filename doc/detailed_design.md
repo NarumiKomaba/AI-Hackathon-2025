@@ -81,11 +81,13 @@ interface WbsItem {
 **3. Council Log (For API & Frontend State)**
 ```typescript
 interface CouncilLog {
-  speakerId: "pmo" | "manager" | "sales" | "super_pm" | "user";
+  speakerId: "pmo" | "manager" | "sales" | "super_pm" | "user" | "cto" | "ux" | "sre" | "genba";
   /** キャラクター表示名 */
   name?: string;
   /** 発言内容 */
   message: string;
+  /** アクション案（要約） */
+  actionPlan?: string;
   /** アイコン画像のパス (Optional) */
   icon?: string;
   /** ユーザーに採用されたかどうか */
@@ -102,6 +104,7 @@ interface CouncilLog {
 | **`chat_messages`** | Auto-generated | Teams等のチャットログ。分析用ソース。 |
 | **`issue_items`** | Auto-generated | Redmine等の課題チケット。 |
 | **`profit_items`** | Auto-generated | 予算・採算管理データ。 |
+| **`project_status`** | Auto-generated | プロジェクトの要約、進捗率、AI生成報告書(`progress_report`)。 |
 
 ---
 
@@ -129,10 +132,12 @@ interface CouncilLog {
 
 #### 2. Report JSON Generation API
 *   **Endpoint**: `POST /api/report`
-*   **Request Body** (Current Implementation):
+*   **Summary**: WBS/Issue/Chat/Budgetデータを分析し、PPTX用JSONを生成。同時に `project_status` に保存する。
+*   **Request Body**:
     ```typescript
     interface ReportReqBody {
-      note?: string; // ユーザーメモ (現状未使用)
+      projectId: string; // 対象クエストID
+      note?: string;     // ユーザーメモ
     }
     ```
 *   **Response Body**:
@@ -140,11 +145,22 @@ interface CouncilLog {
     interface ReportResBody {
       projectId: string;
       slides: any[]; // Slide JSON structure for PPTXGenJS
-      summary?: string; // テキスト要約
     }
     ```
 
-#### 3. PPTX Binary API
+#### 3. Council Report Discussion API
+*   **Endpoint**: `POST /api/council-report-discussion`
+*   **Summary**: 保存済みの `progress_report` を読み込み、AI評議会が議論と想定QAを生成する。
+*   **Request Body**: `{ projectId: string }`
+*   **Response Body**:
+    ```typescript
+    interface CouncilReportResBody {
+      discussion: CouncilLog[];
+      qa: { question: string, answer: string, askedBy: string }[];
+    }
+    ```
+
+#### 4. PPTX Binary API
 *   **Endpoint**: `POST /api/report-pptx`
 *   **Request Body**:
     ```typescript
@@ -176,10 +192,11 @@ sequenceDiagram
     rect rgb(240, 248, 255)
         note right of Page: Step 1: Analyze & Structure
         Page->>API_Rep: POST /api/report
-        API_Rep->>DB: Fetch wbs_items, issue_items, chat_messages
-        DB-->>API_Rep: Project Data
+        API_Rep->>DB: Fetch wbs_items, issue_items, chat_messages, profit_items
+        DB-->>API_Rep: Project Raw Data
         API_Rep->>AI: Generate Slide JSON (System Prompt)
         AI-->>API_Rep: JSON Structure
+        API_Rep->>DB: Save JSON to project_status.progress_report
         API_Rep-->>Page: Return { slides }
     end
 
@@ -204,28 +221,32 @@ function handleSubmit():
     return Error("No file selected")
 
   for file in selectedFiles:
-    // 1. Read File
+    // 1. Read & Parse Excel
     buffer = await file.arrayBuffer()
-    
-    // 2. Parse Excel
     workbook = XLSX.read(buffer)
-    sheet = workbook.Sheets[0]
-    rawData = XLSX.utils.sheet_to_json(sheet)
+    sheetName = workbook.SheetNames[0]
+    rawData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName])
     
-    // 3. Transform & Validate
-    wbsItems = rawData.map(row => ({
+    // 2. Identify Collection by Headers
+    headers = Object.keys(rawData[0])
+    isIssue = headers.some(h => ["トラッカー", "題名"].includes(h))
+    isWbs = headers.some(h => ["サブシス", "機能"].includes(h))
+    
+    collection = "wbs_items"
+    if isIssue: collection = "issue_items"
+    else if isWbs: collection = "wbs_items"
+
+    // 3. Transform Data
+    mappedItems = rawData.map(row => ({
       projectId: selectedQuestId,
-      number: row["No"],
-      feature: row["機能"],
-      status: row["ステータス"],
-      // ... map other fields
+      // mapping logic differs by collection...
       imported_at: serverTimestamp()
     }))
 
     // 4. Batch Save to Firestore
     batch = db.batch()
-    for item in wbsItems:
-      ref = db.collection("wbs_items").doc()
+    for item in mappedItems:
+      ref = db.collection(collection).doc()
       batch.set(ref, item)
     
     await batch.commit()
@@ -508,5 +529,182 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID="..."
 *   **認証機能の追加**: 複数ユーザー・複数プロジェクトの安全な管理。
 *   **PPTXテンプレート機能**: 固定レイアウトではなく、アップロードされた `.pptx` をテンプレートとしてプレースホルダ置換する機能。
 *   **スマホ対応**: レスポンシブデザインの強化（現在はPCデスクトップ推奨）。
+
+---
+
+## 11. AI評議会 (Council Room) 設計詳細
+
+### 11.1 概要
+
+AI評議会は、プロジェクト管理における意思決定を支援するマルチエージェントシステムです。異なる役割を持つAIキャラクターが議論を行い、ユーザー（勇者/PM）に多角的な視点を提供します。
+
+### 11.2 評議会メンバー構成
+
+| ID | 名前 | 役割 | コア価値観 | 対立軸 |
+|:---|:---|:---|:---|:---|
+| **pmo** | 機律 厳 (PMO) | 品質・ルール管理 | コンプライアンス | Sales(納期), Genba(現場ルール) |
+| **sales** | 調子 良い子 (Sales) | 顧客満足・売上 | 顧客満足(CS) | PMO(品質), SRE(負荷) |
+| **manager** | 板挟 課長 (Manager) | 予算・組織管理 | 組織存続 | Genba(赤字), UX(工数) |
+| **cto** | 技術 廃人 (CTO) | 技術・アーキテクチャ | 技術的整合性 | Sales(技術無視) |
+| **ux** | 映え 命 (UX Designer) | デザイン・体験 | UX/世界観 | SRE(重い), CTO(実装難) |
+| **sre** | 堅牢 基盤 (SRE) | インフラ・安定性 | 可用性(落ちない) | Sales(スパイク), UX(重い処理) |
+| **genba** | 現場 守 (Vendor Lead) | 現場運用・リソース | 現場維持 | Manager(赤字), PMO(机上の空論) |
+| **super_pm** | ギルドマスター (Super PM) | 議論ファシリテーター | プロジェクト成功 | - |
+
+### 11.3 動的メンバー選抜ロジック
+
+**実装**: `app/api/council/config.ts` - `selectMembers()`
+
+```typescript
+// キーワードマッチングによるスコアリング
+scores = ALL_MEMBERS.map(member => {
+  score = 0
+  member.keywords.forEach(keyword => {
+    if (contextText.includes(keyword)) score += 3
+  })
+  if (summonId === member.id) score += 999  // 指名優先
+  return { member, score }
+})
+
+// 上位2名 + 対立ペア + ランダム = 計4名
+selected = scores.slice(0, 2)
+// 例: Sales選出時にCTOを追加（対立促進）
+if (selected.includes("sales") && pool.includes("cto")) {
+  selected.push("cto")
+}
+```
+
+### 11.4 役割対立マトリクス (COUNCIL_MATRIX_PROMPT)
+
+各メンバーは以下のマトリクスに基づいて発言します：
+
+| Member | 予算 | 品質 | 売上 | 技術 | インフラ | UX | 現場 |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Manager | **◎** | ○ | ○ | - | - | △ | △ |
+| PMO | ○ | **◎** | △ | ○ | - | - | △ |
+| Sales | ○ | △ | **◎** | △ | △ | ○ | △ |
+| CTO | - | ○ | - | **◎** | ○ | - | - |
+| SRE | △ | ○ | △ | ○ | **◎** | △ | - |
+| UX | △ | - | ○ | △ | △ | **◎** | - |
+| Genba | △ | △ | △ | - | - | - | **◎** |
+
+- **◎**: 死守する聖域
+- **○**: 関心あり
+- **△**: 対立ポイント
+
+### 11.5 条件付き承認メカニズム
+
+**トリガー**: ユーザーが「👍 案を採用」ボタンをクリック
+
+**フロー**:
+1. フロントエンドが `「{案}」を採用したい。各メンバーは条件を提示してくれ。` というメッセージを自動送信
+2. バックエンドが「採用したい」キーワードを検出
+3. **条件付き承認モード**に切り替え：
+   - 各メンバーが自分のコア価値観を守るための**必須条件を1つ**提示
+   - 例: PMO「品質テストの実施が条件だ」
+   - 例: Manager「予算10%増枠が必要」
+4. ギルドマスターが全員の条件をまとめて総括
+
+**実装**: `app/api/council-meeting/route.ts`
+
+```typescript
+const isAdoptionRequest = topic && topic.includes("採用したい");
+
+if (isAdoptionRequest) {
+  prompt += `
+## 【特別指示】条件付き承認モード
+1. 基本姿勢: 案そのものは「条件付きで賛成」する
+2. 条件提示: 自分のコア価値観を守るための必須条件を1つ明確に提示せよ
+3. 簡潔に: 各メンバー1発言のみ
+4. 最後はSuper PM: 全員の条件をまとめ総括せよ
+  `;
+}
+```
+
+### 11.6 指名機能 (Summon System)
+
+**UI**: 入力欄上部にメンバーアイコンバーを配置
+
+**動作**:
+- アイコンクリックで選択状態（黄色枠）
+- 次の送信時に `summonId` をAPIに送信
+- `selectMembers()` でスコア+999を付与し、確実に選抜
+
+**用途**:
+- 「この件はSREに聞きたい」
+- 「現場の意見もくれ」
+
+### 11.7 API仕様
+
+#### POST `/api/council-meeting`
+
+**Request**:
+```json
+{
+  "questTitle": "基幹システム刷新 編",
+  "status": "caution",
+  "metrics": [
+    { "key": "agi", "value": 65 },
+    { "key": "hp", "value": 80 }
+  ],
+  "topic": "コスト削減案は？",
+  "history": [...],
+  "summonId": "sre"  // Optional
+}
+```
+
+**Response**:
+```json
+[
+  {
+    "speakerId": "sre",
+    "message": "インフラコストを削減するなら...",
+    "actionPlan": "クラウドリソース最適化"
+  },
+  ...
+]
+```
+
+#### POST `/api/council-report-discussion`
+
+**Request**:
+```json
+{
+  "projectId": "core-system"
+}
+```
+
+**Response**:
+```json
+{
+  "discussion": [...],
+  "qa": [
+    {
+      "question": "技術的負債の返済計画は？",
+      "answer": "Q2に集中リファクタリング期間を設けます",
+      "askedBy": "役員A"
+    }
+  ]
+}
+```
+
+### 11.8 フロントエンド実装
+
+**ファイル**: `app/quests/[id]/report/page.tsx`
+
+**主要機能**:
+- リアルタイムチャット表示（ストリーミング風演出）
+- メンバーアイコン表示
+- アクション案の採用/取消
+- 指名機能（Summon Bar）
+- 想定Q&A表示
+
+**状態管理**:
+```typescript
+const [logs, setLogs] = useState<CouncilLog[]>([]);
+const [summonId, setSummonId] = useState<string | null>(null);
+const [adoptedActions, setAdoptedActions] = useState<CouncilLog[]>([]);
+const [qaList, setQaList] = useState<AssumedQA[]>([]);
+```
 
 

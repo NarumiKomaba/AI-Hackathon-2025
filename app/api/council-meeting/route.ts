@@ -20,12 +20,7 @@ function initFirestoreAdmin(): FirebaseFirestore.Firestore {
 // ----------------------------------------------------------------------
 // Config & Helpers
 // ----------------------------------------------------------------------
-const MEMBERS = [
-  { id: "pmo", name: "機律 厳 (PMO)", personality: "規律とリスク管理を絶対視。遅延に厳しく悲観的。" },
-  { id: "sales", name: "調子 良い子 (Sales)", personality: "ノリの良い営業。顧客満足度優先で現場負荷無視。" },
-  { id: "manager", name: "板挟 課長 (Manager)", personality: "気弱な管理職。予算超過と上層部の評判を恐れる。" },
-  { id: "super_pm", name: "ギルドマスター (Super PM)", personality: "伝説のPM。議論を整理し、勇者へ『材料と予測』を提示する議長。" },
-];
+import { selectMembers, normalizeSpeakerId, ALL_MEMBERS, COUNCIL_MATRIX_PROMPT } from "../council/config";
 
 async function fetchByProjectEitherKey(db: FirebaseFirestore.Firestore, collection: string, projectId: string) {
   const snap = await db.collection(collection).where("project_id", "==", projectId).limit(10).get();
@@ -62,28 +57,64 @@ export async function POST(req: Request) {
 
     const contextText = [toFastLines(wbs, "WBS重点"), toFastLines(issue, "課題"), toFastLines(profit, "予算")].filter(Boolean).join("\n");
 
-    // 履歴：人間味のある名前を維持してAIに文脈を伝える（ここを削除しすぎていた）
-    const shortHistory = (history as any[])?.slice(-3).map(h => {
-      const name = h.speakerId === "user" ? "勇者" : MEMBERS.find(m => m.id === h.speakerId)?.name || "不明";
+    // Dynamic Member Selection
+    const activeMembers = selectMembers(topic || "", history || []);
+    const activeMemberIds = activeMembers.map(m => m.id).join(", ");
+
+    // 履歴：人間味のある名前を維持してAIに文脈を伝える
+    const shortHistory = (history as any[])?.slice(-5).map(h => {
+      const name = h.speakerId === "user" ? "勇者" : ALL_MEMBERS.find(m => m.id === h.speakerId)?.name || "不明";
       return `${name}: ${h.message}`;
     }).join("\n") || "";
 
-    const prompt = `
-あなたはプロジェクト管理AI。4人のキャラになりきり爆速で議論せよ。
-キャラ設定:
-${MEMBERS.map(m => `- ${m.id}: ${m.name} (${m.personality})`).join("\n")}
+    // Detect if this is an "adoption" request
+    const isAdoptionRequest = topic && (topic.includes("採用したい") || topic.includes("を採用"));
 
-状況: ${questTitle}(${status}) / Metrics: ${JSON.stringify(metrics)}
+    const prompt = `
+あなたはプロジェクト管理AI評議会。
+今回の出席メンバーは【${activeMemberIds}】の4名だ。
+役割とコア価値観になりきり、勇者（User）と議論して、最終的に現実的なアクションプランに収束させよ。
+
+## 出席メンバー設定
+${activeMembers.map(m => `
+- **${m.name} (${m.id})**:
+    - 性格: ${m.personality}
+    - **【譲れないコア価値観 (NG)】**: ${m.coreValue} (NG行動: ${m.ng})
+    - **【調整可能なスタンス】**: ${m.adjustable}
+`).join("")}
+
+${COUNCIL_MATRIX_PROMPT}
+
+## 状況
+Status: ${questTitle}(${status}) / Metrics: ${JSON.stringify(metrics)}
 Data: ${contextText}
 議題: "${topic || "現状分析"}"
-履歴: ${shortHistory}
+履歴:
+${shortHistory}
 
-## ルール
-1. **写像**: Data内の具体的タスク名や数値を必ず引用せよ。
-2. **限界突破**: 深刻な遅延時には、予算や倫理を度外視した「極端な解消案」を必ず1つ含めよ。
-3. **NOイエスマン**: 全員、勇者の案に対し代償を突きつけ、独自の視点で代案を出せ。
-4. 出力は必ず以下のJSON配列形式のみ。speakerIdは必ず pmo, sales, manager, super_pm のいずれかを使用せよ。
-[ {"speakerId":"...", "message":"..."} ]
+${isAdoptionRequest ? `
+## 【特別指示】条件付き承認モード
+勇者が案を採用しようとしている。各メンバーは以下のルールに従え：
+1. **基本姿勢**: 案そのものは「条件付きで賛成」する。
+2. **条件提示**: 自分のコア価値観を守るために**必須の条件を1つ**明確に提示せよ。
+   - 例: PMO「品質テストの実施が条件だ」
+   - 例: Manager「予算10%増枠が必要」
+   - 例: SRE「負荷テストとモニタリング設定が前提」
+3. **簡潔に**: 各メンバー1発言のみ。条件を明確に述べ、アクションプランに条件を含めよ。
+4. **最後はSuper PM**: ギルドマスターが全員の条件をまとめ、「これらの条件を満たせば実行可能」と総括せよ。
+` : `
+## 動的調整ルール (Dynamic Adjustment)
+1. **分析**: 勇者の発言が各メンバーの「NG行動」に触れていないか判定せよ。
+2. **拒絶**: 「NG」に触れる場合、そのメンバーは断固拒否し、理由（コンプライアンス違反、技術的負債など）を述べよ。
+3. **軟化**: 勇者が「調整可能」な領域で妥当な対案を出した場合、スタンスを「反対」から「条件付き賛成」へ変更せよ。
+    - 例: PMO「品質担保が条件だが、そのツール導入なら認めよう」
+4. **収束**: 議論が平行線の場合、誰かが「条件付きの合意」や「段階的な実行」を提案し、アクションに繋げよ。
+`}
+
+## 出力形式
+JSON配列形式のみ。
+[ {"speakerId":"...", "message":"...", "actionPlan":"..."} ]
+${isAdoptionRequest ? "各メンバー1回ずつ + ギルドマスターの総括で構成せよ。" : "各メンバー1回ずつ、計2〜3回の発言で構成せよ。"}
 `.trim();
 
     const result = await ai.models.generateContent({
@@ -130,14 +161,13 @@ Data: ${contextText}
     const jsonMatch = repaired.match(/\[[\s\S]*\]/);
     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : repaired);
 
-    // 念のためのIDマッピング修正（AIがIDを間違えても救い出す）
+    // 念のためのIDマッピング修正
     const normalized = (Array.isArray(parsed) ? parsed : []).map((m: any) => {
-      const rid = String(m.speakerId || m.speaker_id || m.id || m.speaker || "").toLowerCase();
-      let sid = "super_pm";
-      if (rid.includes("pmo") || rid.includes("機律")) sid = "pmo";
-      else if (rid.includes("manager") || rid.includes("課長") || rid.includes("板挟")) sid = "manager";
-      else if (rid.includes("sales") || rid.includes("営業") || rid.includes("調子")) sid = "sales";
-      return { speakerId: sid, message: m.message || m.content || m.text || "" };
+      return {
+        speakerId: normalizeSpeakerId(m.speakerId || m.speaker_id || m.id || m.speaker || ""),
+        message: m.message || m.content || m.text || "",
+        actionPlan: m.actionPlan || m.action || m.plan || ""
+      };
     });
 
     return NextResponse.json(normalized);

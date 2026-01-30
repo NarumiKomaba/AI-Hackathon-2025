@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, Suspense, type ChangeEvent, type DragEvent} from "react";
+import { useRef, useState, Suspense, type ChangeEvent, type DragEvent } from "react";
 import ProjectQuestLayout from "@/components/layout/ProjectQuestLayout";
 import { useSearchParams, useRouter } from "next/navigation";
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
@@ -33,7 +33,7 @@ interface WbsRow {
   "工程": string; // 任意項目（空の可能性がある場合）
   "機能分類": string;
   "機能": string;
-  "備考":string;
+  "備考": string;
   "予定開始日": string;
   "予定終了日": string;
   "実績開始日": string;
@@ -41,6 +41,19 @@ interface WbsRow {
   "ステータス": string;
   "状況": string;
   "担当者名": string;
+}
+
+interface IssueRow {
+  "ID"?: string;
+  "プロジェクト"?: string;
+  "トラッカー"?: string;
+  "ステータス"?: string;
+  "優先度"?: string;
+  "題名"?: string;
+  "担当者"?: string;
+  "更新日"?: string;
+  "カテゴリ"?: string;
+  "内容"?: string;
 }
 
 function GuildSubmitPageInner() {
@@ -86,7 +99,7 @@ function GuildSubmitPageInner() {
   };
 
   // const handleSubmit = () => alert("提出");
-  const handleSubmit = async() => {
+  const handleSubmit = async () => {
     if (fileName.length === 0) {
       alert("ファイルを選択してください。");
       return;
@@ -94,27 +107,40 @@ function GuildSubmitPageInner() {
 
     setUploading(true);
     setMessage("");
-    alert("ファイル名：「" +fileName+ "」を提出しますか？");
+    alert("ファイル名：「" + fileName + "」を提出しますか？");
 
-     try {
+    try {
 
-      for (const [index, file] of selectedFiles.entries()){
+      for (const [index, file] of selectedFiles.entries()) {
 
         // 1. ファイルをArrayBufferとして読み込み
-      const data = await file.arrayBuffer();
+        const data = await file.arrayBuffer();
 
-      // 2. Excelデータの解析
-      const workbook = XLSX.read(data);
-      const sheetName = workbook.SheetNames[0]; // 最初のシートを対象
-      const sheet = workbook.Sheets[sheetName];
+        // 2. Excelデータの解析
+        const workbook = XLSX.read(data);
+        const sheetName = workbook.SheetNames[0]; // 最初のシートを対象
+        const sheet = workbook.Sheets[sheetName];
 
-      // 3. JSONに変換（ヘッダー行がある前提）
-      const jsonData = XLSX.utils.sheet_to_json<WbsRow>(sheet);
+        // 3. JSONに変換（ヘッダー行がある前提）
+        const jsonData = XLSX.utils.sheet_to_json<any>(sheet);
 
-      // 3. 後続の処理も型安全に
-      await saveToFirestore(jsonData, file.name);
+        if (jsonData.length === 0) continue;
 
-      alert("成功しました");
+        // キーをチェックして WBS か Issue か判定
+        const firstRow = jsonData[0];
+        const isWbs = "サブシス" in firstRow || "機能" in firstRow;
+        const isIssue = "トラッカー" in firstRow || "題名" in firstRow || "ID" in firstRow;
+
+        if (isWbs) {
+          await saveToFirestore(jsonData, file.name, "wbs_items");
+        } else if (isIssue) {
+          await saveToFirestore(jsonData, file.name, "issue_items");
+        } else {
+          // 判定不能な場合はとりあえず WBS として扱うか、エラーにする
+          await saveToFirestore(jsonData, file.name, "wbs_items");
+        }
+
+        alert(`${file.name} の取り込みに成功しました`);
       }
     } catch (err) {
       console.error("handleCreateQuestDraft error:", err);
@@ -124,36 +150,47 @@ function GuildSubmitPageInner() {
     }
   };
 
-  const saveToFirestore = async (data: WbsRow[], fileName: string) => {
-
-    const storage = getFirebaseStorage();
+  const saveToFirestore = async (data: any[], fileName: string, collectionName: "wbs_items" | "issue_items") => {
     const db = getFirebaseFirestore();
     const batch = writeBatch(db);
-    const collectionRef = collection(db, "wbs_items");
+    const collectionRef = collection(db, collectionName);
 
     data.forEach((item) => {
-      // item.名前 のように、入力補完（IntelliSense）が効くようになります
-      const docData = {
+      let docData: any = {
         projectId: selectedQuestId,
-        number: item["No"] || 0,
-        subSystem: item["サブシス"] || "不明",
-        phase: item["工程"] || "不明", // 任意項目（空の可能性がある場合）
-        category: item["機能分類"] || "不明",
-        feature: item["機能"] || "不明",
-        description:item["備考"] || "不明",
-        parent_no: null,
-        level: 1,
-        plan_start_date: serverTimestamp(),
-        plan_end_date: serverTimestamp(),
-        actual_start_date: serverTimestamp(),
-        actual_end_date: serverTimestamp(),
-        status: item["ステータス"] || "不明",
-        progress_ratio: item["状況"] || "不明",
-        assignee: item["担当者名"] || "不明",
-        snapshot_date: serverTimestamp(),
         source_file_name: fileName,
         imported_at: serverTimestamp(),
       };
+
+      if (collectionName === "wbs_items") {
+        Object.assign(docData, {
+          number: item["No"] || 0,
+          subSystem: item["サブシス"] || "不明",
+          phase: item["工程"] || "不明",
+          category: item["機能分類"] || "不明",
+          feature: item["機能"] || "不明",
+          description: item["備考"] || "不明",
+          status: item["ステータス"] || "不明",
+          progress_ratio: item["状況"] || "不明",
+          assignee: item["担当者名"] || "不明",
+          plan_start_date: serverTimestamp(),
+          plan_end_date: serverTimestamp(),
+        });
+      } else {
+        // issue_items (Redmine style)
+        Object.assign(docData, {
+          issue_id: String(item["ID"] || ""),
+          tracker: item["トラッカー"] || "Task",
+          status: item["ステータス"] || "新規",
+          priority: item["優先度"] || "通常",
+          title: item["題名"] || "不明",
+          assignee: item["担当者"] || "未割当",
+          updated_at: item["更新日"] || "",
+          category: item["カテゴリ"] || "その他",
+          description: item["内容"] || ""
+        });
+      }
+
       const newDocRef = doc(collectionRef);
       batch.set(newDocRef, docData);
     });
@@ -167,7 +204,7 @@ function GuildSubmitPageInner() {
   const [reportError, setReportError] = useState("");
 
   const handleCreateReport = async () => {
-    const projectId = "dummy_projectId";
+    const projectId = selectedQuestId;
 
     // ★ 前回の結果をリセット
     setReportError("");
@@ -179,7 +216,7 @@ function GuildSubmitPageInner() {
       const r1 = await fetch("/api/report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note }),
+        body: JSON.stringify({ note, projectId: selectedQuestId }),
       });
 
       if (!r1.ok) {
@@ -225,7 +262,7 @@ function GuildSubmitPageInner() {
       setIsReporting(false); // ★ loading終了
     }
   };
-  
+
 
   return (
     <ProjectQuestLayout>
@@ -285,19 +322,19 @@ function GuildSubmitPageInner() {
                   />
 
                   {selectedFiles.length > 0 && (
-                  <div className="mt-3 text-left max-h-24 overflow-y-auto text-[11px] text-gray-800">
-                    <p className="font-semibold mb-1">
-                      選択中: {selectedFiles.length} ファイル
-                    </p>
-                    <ul className="list-disc pl-4 space-y-0.5">
-                      {selectedFiles.map((file) => (
-                        <li key={file.name}>
-                          {file.name}（{file.size} bytes）
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                    <div className="mt-3 text-left max-h-24 overflow-y-auto text-[11px] text-gray-800">
+                      <p className="font-semibold mb-1">
+                        選択中: {selectedFiles.length} ファイル
+                      </p>
+                      <ul className="list-disc pl-4 space-y-0.5">
+                        {selectedFiles.map((file) => (
+                          <li key={file.name}>
+                            {file.name}（{file.size} bytes）
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -387,9 +424,8 @@ function GuildSubmitPageInner() {
                 <img
                   src="/images/make-blue.png"
                   alt="報告書作成"
-                  className={`h-20 w-auto select-none ${
-                    isReporting ? "opacity-60" : ""
-                  } cursor-pointer`}
+                  className={`h-20 w-auto select-none ${isReporting ? "opacity-60" : ""
+                    } cursor-pointer`}
                   draggable={false}
                 />
               </button>

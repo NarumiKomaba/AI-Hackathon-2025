@@ -1,85 +1,48 @@
-import { NextResponse } from "next/server";
-import admin from "firebase-admin";
-import fs from "node:fs";
-import path from "node:path";
-import { GoogleGenAI } from "@google/genai";
-export const runtime = "nodejs";
+const admin = require("firebase-admin");
+const fs = require("fs");
+const path = require("path");
+const { GoogleGenAI } = require("@google/genai");
 
-/* ================================
-   Firestore Admin init
-================================ */
-function initFirestoreAdmin() {
-  if (admin.apps.length) return admin.firestore();
+// --- 0. Load .env.local if exists ---
+const envPath = path.join(process.cwd(), ".env.local");
+if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, "utf-8");
+    envContent.split("\n").forEach(line => {
+        const [key, ...valueParts] = line.split("=");
+        if (key && valueParts.length > 0) {
+            const value = valueParts.join("=").trim().replace(/^"|"$/g, '');
+            process.env[key.trim()] = value;
+        }
+    });
+}
+const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || "./service-account.json";
+const abs = path.isAbsolute(credPath) ? credPath : path.join(process.cwd(), credPath);
+if (!fs.existsSync(abs)) {
+    console.error("Service account not found:", abs);
+    process.exit(1);
+}
+const serviceAccount = JSON.parse(fs.readFileSync(abs, "utf-8"));
+if (!admin.apps.length) {
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+    });
+}
+const db = admin.firestore();
 
-  const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  if (!credPath) throw new Error("GOOGLE_APPLICATION_CREDENTIALS is not set");
-
-  const abs = path.isAbsolute(credPath)
-    ? credPath
-    : path.join(process.cwd(), credPath);
-
-  if (!fs.existsSync(abs)) {
-    throw new Error(`service account json not found: ${abs}`);
-  }
-
-  const serviceAccount = JSON.parse(fs.readFileSync(abs, "utf-8"));
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-
-  return admin.firestore();
+// --- 2. Prompt & Helpers (Exact copy from app/api/report/route.ts) ---
+function toLines(arr, label, max = 200) {
+    const sliced = arr.slice(0, max);
+    if (sliced.length === 0) return `${label}: (0件)`;
+    return [
+        `${label}: (${sliced.length}件)`,
+        ...sliced.map((x) => JSON.stringify(x)),
+    ].join("\n");
 }
 
-/* ================================
-   Firestore helpers
-================================ */
-async function fetchByProjectEitherKey(
-  db: FirebaseFirestore.Firestore,
-  collection: string,
-  projectId: string,
-  limit = 500
-) {
-  const snap1 = await db
-    .collection(collection)
-    .where("project_id", "==", projectId)
-    .limit(limit)
-    .get();
+function buildPmoWeeklySlidesPrompt(params) {
+    const { wbs_data_text, redmine_data_text, teams_chat_data_text, budget_data } = params;
 
-  if (!snap1.empty) {
-    return snap1.docs.map((d) => ({ id: d.id, ...d.data() }));
-  }
-
-  const snap2 = await db
-    .collection(collection)
-    .where("projectId", "==", projectId)
-    .limit(limit)
-    .get();
-
-  return snap2.docs.map((d) => ({ id: d.id, ...d.data() }));
-}
-
-function toLines(arr: unknown[], label: string, max = 200) {
-  const sliced = arr.slice(0, max);
-  if (sliced.length === 0) return `${label}: (0件)`;
-  return [
-    `${label}: (${sliced.length}件)`,
-    ...sliced.map((x) => JSON.stringify(x)),
-  ].join("\n");
-}
-
-/* ================================
-   Prompt
-================================ */
-function buildPmoWeeklySlidesPrompt(params: {
-  wbs_data_text: string;
-  redmine_data_text: string;
-  teams_chat_data_text: string;
-  budget_data: string;
-}) {
-  const { wbs_data_text, redmine_data_text, teams_chat_data_text, budget_data } = params;
-
-  return `
+    return `
 # 命令
 あなたは大規模システム開発プロジェクトの優秀なPMO（プロジェクトマネジメントオフィス）担当者です。
 以下の4つの[入力データ]を分析・統合し、経営層およびチームに向けた「週次進捗報告」のPowerPointスライド構成案を作成してください。
@@ -223,118 +186,67 @@ ${budget_data}
 `.trim();
 }
 
-/* ================================
-   Parse JSON
-================================ */
-function parseSlidesJsonFromResponse(text: string) {
-  const m = text.match(/\[[\s\S]*\]/);
-  if (!m) {
-    throw new Error("JSON配列抽出に失敗");
-  }
-
-  const jsonStr = m[0];
-  const slides = JSON.parse(jsonStr);
-
-  if (!Array.isArray(slides)) {
-    throw new Error("JSONは配列ではありません");
-  }
-
-  return { slides, jsonStr };
+async function fetchByProjectEitherKey(collection, projectId, limit = 500) {
+    const snap1 = await db.collection(collection).where("project_id", "==", projectId).limit(limit).get();
+    if (!snap1.empty) return snap1.docs.map((d) => d.data());
+    const snap2 = await db.collection(collection).where("projectId", "==", projectId).limit(limit).get();
+    return snap2.docs.map((d) => d.data());
 }
 
-/* ================================
-   Vertex generate
-================================ */
-export async function generateWeeklySlidesJson(prompt: string) {
-  const ai = new GoogleGenAI({
-    vertexai: true,
-    project: process.env.GCP_PROJECT_ID!,
-    location: process.env.GCP_LOCATION!,
-  });
+async function main() {
+    const projectId = "core-system";
+    console.log("Fetching raw data for project:", projectId);
 
-  const resp = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    config: {
-      thinkingConfig: { thinkingBudget: 0 },
-    },
-  });
+    const [wbs_items, issue_items, chat_messages, profit_items] = await Promise.all([
+        fetchByProjectEitherKey("wbs_items", projectId),
+        fetchByProjectEitherKey("issue_items", projectId),
+        fetchByProjectEitherKey("chat_messages", projectId),
+        fetchByProjectEitherKey("profit_items", projectId),
+    ]);
 
-  const text = resp.text ?? "";
-  return { rawText: text, ...parseSlidesJsonFromResponse(text) };
-}
-/* ================================
-   Route
-================================ */
-export async function POST(req: Request) {
-  try {
-    const { note, projectId: reqPid } = await req.json() as { note?: string, projectId?: string };
-    const projectId = reqPid || "core-system";
-
-    const db = initFirestoreAdmin();
-
-    const [wbs_items, issue_items, chat_messages, profit_items] =
-      await Promise.all([
-        fetchByProjectEitherKey(db, "wbs_items", projectId, 800),
-        fetchByProjectEitherKey(db, "issue_items", projectId, 800),
-        fetchByProjectEitherKey(db, "chat_messages", projectId, 800),
-        fetchByProjectEitherKey(db, "profit_items", projectId, 800),
-      ]);
+    console.log(`- WBS items: ${wbs_items.length}`);
+    console.log(`- Issue items: ${issue_items.length}`);
+    console.log(`- Chat messages: ${chat_messages.length}`);
+    console.log(`- Profit items: ${profit_items.length}`);
 
     const prompt = buildPmoWeeklySlidesPrompt({
-      wbs_data_text: toLines(wbs_items, "WBS"),
-      redmine_data_text: toLines(issue_items, "ISSUE"),
-      teams_chat_data_text: toLines(chat_messages, "CHAT"),
-      budget_data: toLines(profit_items, "BUDGET"),
+        wbs_data_text: toLines(wbs_items, "WBS"),
+        redmine_data_text: toLines(issue_items, "ISSUE"),
+        teams_chat_data_text: toLines(chat_messages, "CHAT"),
+        budget_data: toLines(profit_items, "BUDGET"),
     });
 
-    const { slides } = await generateWeeklySlidesJson(prompt);
+    console.log("Generating progress_report via Gemini (Vertex AI mode)...");
+    const ai = new GoogleGenAI({
+        vertexai: true,
+        project: process.env.GCP_PROJECT_ID,
+        location: process.env.GCP_LOCATION || "asia-northeast1",
+    });
 
-    // ✅ progress_report に保存する
-    const reportJson = JSON.stringify({ slides });
+    const result = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        config: {
+            thinkingConfig: { thinkingBudget: 0 },
+        },
+    });
 
-    // 指定された projectId に合致するドキュメントを探して更新、なければ新規作成
-    const statusQuery = await db.collection("project_status").where("project_id", "==", projectId).limit(1).get();
+    const rawText = result.text;
+    const match = rawText.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error("Could not find JSON array in AI response");
+    const slides = JSON.parse(match[0]);
+    const reportJson = JSON.stringify({ slides }, null, 2);
 
-    if (!statusQuery.empty) {
-      const docId = statusQuery.docs[0].id;
-      await db.collection("project_status").doc(docId).update({
+    console.log("Updating Firestore document 8QSIF8XHeoo6GeXmg8jO...");
+    await db.collection("project_status").doc("8QSIF8XHeoo6GeXmg8jO").update({
         progress_report: reportJson,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-    } else {
-      // projectId でも検索（揺れ対応）
-      const statusQuery2 = await db.collection("project_status").where("projectId", "==", projectId).limit(1).get();
-      if (!statusQuery2.empty) {
-        const docId = statusQuery2.docs[0].id;
-        await db.collection("project_status").doc(docId).update({
-          progress_report: reportJson,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-      } else {
-        // 新規作成
-        await db.collection("project_status").add({
-          project_id: projectId,
-          progress_report: reportJson,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-      }
-    }
-
-    return NextResponse.json({
-      projectId,
-      slides,
     });
-  } catch (e: unknown) {
-    console.error("❌ report generation failed:", e);
 
-    const message =
-      e instanceof Error ? e.message : "unknown error";
-
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
-  }
+    console.log("Success! progress_report has been rebuilt with the official prompt.");
 }
+
+main().catch(err => {
+    console.error("Manual Rebuild Failed:", err);
+    process.exit(1);
+});

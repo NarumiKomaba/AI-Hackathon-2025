@@ -51,9 +51,14 @@ components/
 
 ## 3. 状態管理 (State Management)
 
-### ローカルステート vs グローバルステート
-*   **Global**: 基本的には URL Query Parameters (`?questId=...`) を利用し、リロードしても状態が維持される設計とする（Deep Linking）。
-*   **Local (Page Level)**: `activeTab` (進捗/ガント/タスク) などの一時的なUI状態は `useState` で管理。
-*   **Server State**: SWR または React Server Components + `fetch` でデータ取得を行い、キャッシュ管理する。
+### ローカルステート (Page Level)
+*   **`logs`**: チャットログの配列 (`CouncilLog[]`)。議論リセット時にクリアされる。
+*   **`adoptedActions`**: 採用されたアクション案の配列 (`CouncilLog[]`)。
+    *   **特徴**: インデックスではなくメッセージ内容（オブジェクト）を保持するため、`logs` がリセットされてもボード上の表示が消失しない（永続化）。
+*   **`activeTab`**: 進捗/ガント/タスクの切り替え状態。
+
+### サーバーステート / グローバルステート
+*   **Global**: URL Query Parameters (`?questId=...`) を利用。
+*   **Server State**: Firestore から直接取得、または API (`/api/report`) 経由での取得。
 
 ---

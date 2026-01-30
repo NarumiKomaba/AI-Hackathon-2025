@@ -80,7 +80,7 @@ Next.js App RouterのRoute Handlersを使用したAPIエンドポイント定義
 #### Request Body
 ```json
 {
-  "projectId": "quest-001",
+  "projectId": "core-system",
   "projectName": "基幹刷新",
   "slides": [
     {
@@ -88,16 +88,6 @@ Next.js App RouterのRoute Handlersを使用したAPIエンドポイント定義
       "body": {
         "summary_text": "今週は順調に進捗。",
         "key_points": ["サーバー手配完了", "NW開通遅延なし"]
-      }
-    },
-    {
-      "content_type": "issue_table",
-      "body": {
-        "table_headers": ["ID", "課題内容", "担当", "期限"],
-        "table_rows": [
-          ["1", "認証エラー発生", "田中", "2025-12-10"],
-          ["2", "API仕様未定", "佐藤", "2025-12-15"]
-        ]
       }
     }
   ]
@@ -108,7 +98,39 @@ Next.js App RouterのRoute Handlersを使用したAPIエンドポイント定義
 *   Content-Type: `application/vnd.openxmlformats-officedocument.presentationml.presentation`
 *   Body: Binary data of .pptx file.
 
-### 2.4 Council Meeting API
+---
+
+### 2.4 Report Generation API (Gemini Analysis)
+*   **Path**: `/api/report`
+*   **Method**: `POST`
+*   **Summary**: WBS、課題、チャット、予算の各コレクションからプロジェクトデータを集約し、Geminiで分析。PPTX用のスライドJSONを生成し、`project_status.progress_report` に保存する。
+
+#### Request Body
+```json
+{
+  "projectId": "core-system",
+  "note": "任意の説明文"
+}
+```
+
+#### Response (Success: 200 OK)
+```json
+{
+  "projectId": "core-system",
+  "slides": [
+    {
+      "slide_id": 1,
+      "title": "プロジェクト総評",
+      "content_type": "text_summary",
+      "body": { ... }
+    }
+  ]
+}
+```
+
+---
+
+### 2.5 Council Meeting API
 *   **Path**: `/api/council-meeting`
 *   **Method**: `POST`
 *   **Summary**: 4人のAI評議会メンバーが議論を行い、結論と具体的なアクションプランを出力する。
@@ -134,16 +156,52 @@ Next.js App RouterのRoute Handlersを使用したAPIエンドポイント定義
       "speakerId": "sales",
       "name": "営業",
       "message": "顧客には正直に話しましょう！",
+      "actionPlan": "顧客へ現状の遅延状況を正直に報告",
       "icon": "/images/council_sales.png"
     },
     {
       "speakerId": "super_pm",
       "name": "Super PM",
       "message": "では、一部機能をPhase2へ回す方向で調整する。",
+      "actionPlan": "Phase2への機能先送りを正式決定",
       "icon": "/images/council_super_pm.png"
     }
   ]
 }
+
+---
+
+### 2.6 Council Report Discussion API
+*   **Path**: `/api/council-report-discussion`
+*   **Method**: `POST`
+*   **Summary**: 報告書(`progress_report`)に基づき、メンバー4人で激しい議論と想定QAを行う。
+
+#### Request Body
+```json
+{
+  "projectId": "core-system"
+}
+```
+
+#### Response (Success: 200 OK)
+```json
+{
+  "discussion": [
+    {
+      "speakerId": "pmo",
+      "message": "この報告書、リスク評価が甘いのではないでしょうか。",
+      "actionPlan": "リスク項目の再洗い出しと定義"
+    }
+  ],
+  "qa": [
+    {
+      "question": "なぜ進捗が遅れているのか？",
+      "answer": "設計フェーズでの認識齟齬が主因です。",
+      "askedBy": "役員A"
+    }
+  ]
+}
+```
 ```
 
 ---
