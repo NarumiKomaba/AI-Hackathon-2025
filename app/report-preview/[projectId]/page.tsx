@@ -5,13 +5,45 @@ import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 
 type SlideContent = {
-  slide_id: number;
+  slide_id?: number;
   title: string;
   content_type: string;
   body: any;
 };
 
 type ThemeType = 'rpg' | 'serious';
+type OnUpdateText = (path: string, val: string) => void;
+type OnUpdateArray = (path: string, idx: number, val: any) => void;
+
+interface SlideFrameProps {
+  index: number;
+  theme: ThemeType;
+  slide: SlideContent;
+  isEditMode?: boolean;
+  onUpdateText?: OnUpdateText;
+  onUpdateArray?: OnUpdateArray;
+}
+
+interface RenderSlideContentProps {
+  theme: ThemeType;
+  slide: SlideContent;
+  isEditMode?: boolean;
+  onUpdateText?: OnUpdateText;
+  onUpdateArray?: OnUpdateArray;
+}
+
+interface IssueTableProps {
+  body: any;
+  isEditMode?: boolean;
+  onUpdateArray?: OnUpdateArray;
+  isRpg?: boolean;
+}
+
+interface EditableTextProps {
+  value: string;
+  path: string;
+  className?: string;
+}
 
 export default function ReportPreviewPage() {
   const { projectId } = useParams();
@@ -23,7 +55,7 @@ export default function ReportPreviewPage() {
   const [theme, setTheme] = useState<ThemeType>('rpg');
 
   // スライドを自動で適切なサイズに分割するユーティリティ
-  const paginateSlides = (rawSlides: any[]) => {
+  const paginateSlides = (rawSlides: SlideContent[]): SlideContent[] => {
     const paginated: any[] = [];
     rawSlides.forEach(slide => {
       if (slide.content_type === 'issue_table') {
@@ -92,7 +124,7 @@ export default function ReportPreviewPage() {
     setSlides(newSlides);
   };
 
-  const handleUpdateArray = (slideIdx: number, path: string, itemIdx: number, value: string) => {
+  const handleUpdateArray = (slideIdx: number, path: string, itemIdx: number, value: any) => {
     const newSlides = [...slides];
     const keys = path.split('.');
     let current: any = newSlides[slideIdx];
@@ -124,7 +156,7 @@ export default function ReportPreviewPage() {
   };
 
   const handleSplitSlide = (idx: number) => {
-    const slide = slides[idx];
+    const slide = slides[idx] as SlideContent;
     const newSlides = [...slides];
 
     if (slide.content_type === 'issue_table' || slide.content_type === 'issue_text' || slide.content_type === 'table_and_text') {
@@ -285,8 +317,8 @@ export default function ReportPreviewPage() {
               theme={theme}
               slide={slide}
               isEditMode={isEditMode}
-              onUpdateText={(path, val) => handleUpdateText(index, path, val)}
-              onUpdateArray={(path, idx, val) => handleUpdateArray(index, path, idx, val)}
+              onUpdateText={(path: string, val: string) => handleUpdateText(index, path, val)}
+              onUpdateArray={(path: string, idx: number, val: any) => handleUpdateArray(index, path, idx, val)}
             />
           </div>
         ))}
@@ -322,7 +354,7 @@ export default function ReportPreviewPage() {
   );
 }
 
-function SlideFrame({ index, theme, slide, isEditMode, onUpdateText, onUpdateArray }: any) {
+function SlideFrame({ index, theme, slide, isEditMode, onUpdateText, onUpdateArray }: SlideFrameProps) {
   const isCover = slide.content_type === 'cover';
   const isToc = slide.content_type === 'toc';
   const isRpg = theme === 'rpg';
@@ -388,7 +420,7 @@ function SlideFrame({ index, theme, slide, isEditMode, onUpdateText, onUpdateArr
                   </div>
                   <h1
                     contentEditable={isEditMode && !isToc} suppressContentEditableWarning
-                    onBlur={(e) => onUpdateText('title', e.currentTarget.textContent || "")}
+                    onBlur={(e) => onUpdateText?.('title', e.currentTarget.textContent || "")}
                     className={`text-4xl font-bold bg-gradient-to-r from-white via-white to-[#D4A373] bg-clip-text text-transparent italic ${isEditMode && !isToc ? 'outline-dashed outline-1 outline-[#8A4B26] px-2' : ''}`}
                   >
                     {isToc ? "目次 (Adventure Log)" : slide.title}
@@ -447,7 +479,7 @@ function SlideFrame({ index, theme, slide, isEditMode, onUpdateText, onUpdateArr
                   </div>
                   <h1
                     contentEditable={isEditMode && !isToc} suppressContentEditableWarning
-                    onBlur={(e) => onUpdateText('title', e.currentTarget.textContent || "")}
+                    onBlur={(e) => onUpdateText?.('title', e.currentTarget.textContent || "")}
                     className={`text-4xl font-bold text-slate-800 ${isEditMode && !isToc ? 'outline-dashed outline-1 outline-blue-400 px-2' : ''}`}
                   >
                     {isToc ? "本日の報告内容" : slide.title}
@@ -476,15 +508,15 @@ function SlideFrame({ index, theme, slide, isEditMode, onUpdateText, onUpdateArr
   }
 }
 
-function RenderSlideContent({ theme, slide, isEditMode, onUpdateText, onUpdateArray }: any) {
+function RenderSlideContent({ theme, slide, isEditMode, onUpdateText, onUpdateArray }: RenderSlideContentProps) {
   const { content_type, body } = slide;
   const isRpg = theme === 'rpg';
 
-  const EditableText = ({ value, path, className = "" }: any) => (
+  const EditableText = ({ value, path, className = "" }: EditableTextProps) => (
     <div
       contentEditable={isEditMode}
       suppressContentEditableWarning
-      onBlur={(e) => onUpdateText(path, e.currentTarget.textContent || "")}
+      onBlur={(e) => onUpdateText?.(path, e.currentTarget.textContent || "")}
       className={`${className} ${isEditMode ? `outline-dashed outline-1 ${isRpg ? 'outline-[#8A4B26]/50 bg-white/5' : 'outline-blue-300 bg-blue-50/50'} px-1` : ''}`}
     >
       {value}
@@ -534,7 +566,7 @@ function RenderSlideContent({ theme, slide, isEditMode, onUpdateText, onUpdateAr
                 )}
                 <div
                   contentEditable={isEditMode} suppressContentEditableWarning
-                  onBlur={(e) => onUpdateArray('body.key_points', i, e.currentTarget.textContent || "")}
+                  onBlur={(e) => onUpdateArray?.('body.key_points', i, e.currentTarget.textContent || "")}
                   className={`flex-1 leading-tight ${isEditMode ? 'bg-white/5 outline-dashed outline-1 opacity-80' : ''}`}
                 >
                   {p}
@@ -553,7 +585,7 @@ function RenderSlideContent({ theme, slide, isEditMode, onUpdateText, onUpdateAr
               <span className={`${isRpg ? 'text-[#8A4B26]' : 'text-[#005AAA]'} mt-1 shrink-0`}>{isRpg ? '▶' : '■'}</span>
               <div
                 contentEditable={isEditMode} suppressContentEditableWarning
-                onBlur={(e) => onUpdateArray('body.items', i, e.currentTarget.textContent || "")}
+                onBlur={(e) => onUpdateArray?.('body.items', i, e.currentTarget.textContent || "")}
                 className={`flex-1 ${isEditMode ? 'bg-white/5 outline-dashed outline-1' : ''}`}
               >
                 {item}
@@ -592,7 +624,7 @@ function RenderSlideContent({ theme, slide, isEditMode, onUpdateText, onUpdateAr
                             const newRows = [...(body.table_rows || [[]])];
                             if (!newRows[0]) newRows[0] = [];
                             newRows[0][i] = e.currentTarget.textContent || "";
-                            onUpdateArray('body.table_rows', 0, newRows[0]);
+                            onUpdateArray?.('body.table_rows', 0, newRows[0]);
                           }}
                           className={isEditMode ? 'bg-white/5 outline-dashed outline-1' : ''}
                         >
@@ -722,7 +754,7 @@ function RenderSlideContent({ theme, slide, isEditMode, onUpdateText, onUpdateAr
   }
 }
 
-function IssueTable({ body, isEditMode, onUpdateArray, isRpg }: any) {
+function IssueTable({ body, isEditMode, onUpdateArray, isRpg }: IssueTableProps) {
   return (
     <div className={`overflow-hidden border rounded-lg shadow-xl backdrop-blur-sm print:shadow-none print:backdrop-filter-none ${isRpg ? 'border-[#8A4B26]/40 bg-white/5 print:bg-transparent' : 'border-slate-200 bg-white print:bg-transparent'}`}>
       <table className="w-full text-left border-collapse">
@@ -744,7 +776,7 @@ function IssueTable({ body, isEditMode, onUpdateArray, isRpg }: any) {
                     onBlur={(e) => {
                       const newRow = [...row];
                       newRow[j] = e.currentTarget.textContent || "";
-                      onUpdateArray('body.table_rows', i, newRow);
+                      onUpdateArray?.('body.table_rows', i, newRow);
                     }}
                     className={`${isEditMode ? 'bg-white/5 outline-dashed outline-1 outline-[#8A4B26]/20' : ''}`}
                   >

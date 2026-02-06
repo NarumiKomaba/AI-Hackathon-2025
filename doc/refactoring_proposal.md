@@ -60,12 +60,12 @@ export function getAdminFirestore() {
 ## 4. 巨大なルートハンドラー (Fat Controller) の詳細化
 
 ### 現状の課題
-*   **プレゼンテーションロジックの混入**: `app/api/report-pptx/route.ts` は約850行あり、PPTXライブラリの操作、レイアウト計算、行数見積もりなどのロジックがAPIハンドラー内に直書きされています。
+*   **プレゼンテーションロジックの混入**: PDFプレビュー・生成ロジックにおいて、レイアウト計算やAIによるデータ整形が複雑化しています。以前のPPTX生成（約850行）は廃止されましたが、現在のPDF生成エンジン（Playwright/CSS Print）もさらなるモジュール化が必要です。
 *   **プロンプトの埋め込み**: `app/api/report/route.ts` にAIへの指示（プロンプト）がハードコードされており、調整が困難です。
 
 ### 改善案
 *   **Service層の分離**:
-    *   PPTX生成ロジック → `lib/services/ReportGenerator.ts`
+    *   PDF生成・レイアウト提供 → `lib/services/PdfGenerator.ts`
     *   AI対話ロジック → `lib/services/CouncilService.ts`
 *   **プロンプトの外部化**: `lib/prompts/` ディレクトリを作成し、プロンプトをテンプレートとして管理します。
 

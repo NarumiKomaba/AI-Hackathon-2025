@@ -72,31 +72,22 @@ Next.js App RouterのRoute Handlersを使用したAPIエンドポイント定義
 
 ---
 
-### 2.3 Report PDF/PPTX API
-*   **Path**: `/api/report-pptx`
+### 2.3 Report PDF API (DEPRECATED: /api/report-pptx)
+*   **Path**: `/api/report-pdf`
 *   **Method**: `POST`
-*   **Summary**: JSONデータからPowerPoint(.pptx)ファイルを生成してバイナリで返す。
+*   **Summary**: プレビュー画面をPlaywright等のヘッドレスブラウザで高品質にキャプチャし、PDFを生成して返す。
+*   **Status**: `report-pptx` は廃止され、本システムは **PDF出力専用** に最適化されました。
 
 #### Request Body
 ```json
 {
-  "projectId": "core-system",
-  "projectName": "基幹刷新",
-  "slides": [
-    {
-      "content_type": "text_summary",
-      "body": {
-        "summary_text": "今週は順調に進捗。",
-        "key_points": ["サーバー手配完了", "NW開通遅延なし"]
-      }
-    }
-  ]
+  "projectId": "core-system"
 }
 ```
 
 #### Response (Success: 200 OK)
-*   Content-Type: `application/vnd.openxmlformats-officedocument.presentationml.presentation`
-*   Body: Binary data of .pptx file.
+*   Content-Type: `application/pdf`
+*   Body: Binary data of .pdf file.
 
 ---
 
