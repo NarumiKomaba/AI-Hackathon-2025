@@ -16,6 +16,7 @@
     "firebase-admin": "^13.6.0",
     "next": "16.0.7",
     "office-to-pdf": "^4.0.0",
+    "playwright": "^1.58.1",
     "pptxgenjs": "^4.0.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",

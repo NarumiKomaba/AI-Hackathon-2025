@@ -17,6 +17,7 @@
     *   3.3 AI・LLM実装設計
     *   3.4 フロントエンド設計方針
     *   3.5 AI評議会 設計思想 (The Council Room Philosophy)
+    *   3.6 報告書プレビュー・PDF生成設計 (Presentation Engine)
 
 ## 4. データ設計
 
@@ -132,19 +133,21 @@ interface CouncilLog {
 
 #### 2. Report JSON Generation API
 *   **Endpoint**: `POST /api/report`
-*   **Summary**: WBS/Issue/Chat/Budgetデータを分析し、PPTX用JSONを生成。同時に `project_status` に保存する。
-*   **Request Body**:
-    ```typescript
-    interface ReportReqBody {
-      projectId: string; // 対象クエストID
-      note?: string;     // ユーザーメモ
-    }
-    ```
+*   **Summary**: WBS/Issue/Chat/Budgetデータを分析し、PPTX用JSONを生成。
+*   **AIプロンプト戦略**:
+    - **情報の統合分析**: 単なる要約ではなく、WBSの遅延とチャット内の議論、Redmineの課題を紐付けた「因果関係」の抽出。
+    - **徹底的な枚数分割**: 「1枚に詰め込むことは最大の禁忌」とし、枚数が増えることを許容。
+    - **数値の正規化**: グラフ生成のために `charts` 配列を必須とし、データ不足時は論理的推論に基づく補完を実行。
 *   **Response Body**:
     ```typescript
     interface ReportResBody {
       projectId: string;
-      slides: any[]; // Slide JSON structure for PPTXGenJS
+      slides: {
+        slide_id: number;
+        title: string;
+        content_type: "cover" | "toc" | "text_summary" | "issue_text" | "table_and_text" | "multi_chart_and_text" | "issue_table" | "bullet_points";
+        body: any;
+      }[];
     }
     ```
 
@@ -407,7 +410,30 @@ graph TD
     *   `app/quests/[id]/report/page.tsx` is marked with `"use client"`.
     *   Data fetching happens via `useEffect` (Client-side) due to Real-time requirements and Firestore Client SDK usage.
 
-### 3.5 AI評議会 設計思想 (The Council Room Philosophy)
+### 3.6 報告書プレビュー・PDF生成設計 (Presentation Engine)
+
+AIによって生成されたスライド構成案を、インタラクティブに編集・プレビューし、最終的に高品質なPDFとして出力するためのエンジン。
+
+#### 1. レンダリング・アーキテクチャ
+- **動的レイアウト・インジェクション**: `content_type` に基づき、最適なReactコンポーネントを切り替える。 P4(課題詳細)やP7(コスト分析)は情報密度を高めるために「2カラム・グリッド」を標準採用。
+- **One Issue Per Slide 原則**: 重大な課題については、1枚のスライドに1課題のみを配置。左側にメタデータ、右側にAIによる深掘り分析を配置することで、情報の見落としを防ぐ。
+
+#### 2. 自動改ページロジック (Auto-Pagination)
+- **Table Pagination**: `issue_table` が7行（1280x720pxの限界）を超える場合、自動的にスライドを分割し、「(1/2)」「(2/2)」等の連番をタイトルに付与。
+- **TOC Pagination**: 目次項目が10項目（5行2列）を超える場合、自動的に2枚目以降に継続する。
+- **Bullet Point Pagination**: 箇条書きが6項目を超える場合の自動分割。
+
+#### 3. 絶対パース・スマートフォールバック (Absolute Parser)
+- AIが想定外の構造で回答した場合も、JSONを再帰的に解析し、以下の優先順位で情報を救出・表示する。
+    1. 配列が含まれる場合 → 箇条書きスライドとして構成
+    2. 文字列が散在する場合 → センタリングされた強調サマリースライドとして構成
+- 「エラー画面」をユーザーに見せず、常に完成されたデザインの中に情報を流し込む。
+
+#### 4. PDF出力最適化 (Playwright/CSS Print)
+- **固定解像度型ドキュメント**: 1280x720px (16:9) の固定サイズで全スライドを統一。
+- **CSS Media Print 完全制御**: 
+    - ブラウザのスクロールバー、影、ぼかし（backdrop-blur）などのレンダリング負荷の高い要素を印刷時に無効化。
+    - 各スライド間に `page-break-after: always` を挿入し、位置ずれを1px単位で防止。
 
 本システムの中核である「AI評議会」は、単なるチャットボットではなく、以下の高度な設計思想に基づいて構築されている。
 

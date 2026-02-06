@@ -232,29 +232,8 @@ function GuildSubmitPageInner() {
         setReportSummary(j1.summary);
       }
 
-      // 2) PPTX を生成
-      const r2 = await fetch("/api/report-pptx", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, slides }),
-      });
-
-      if (!r2.ok) {
-        const text = await r2.text();
-        console.error("report-pptx API error:", r2.status, text);
-        throw new Error("report-pptx API error");
-      }
-
-      const blob = await r2.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `weekly_report_${projectId}.pptx`;
-      a.click();
-      URL.revokeObjectURL(url);
-
-      // ★ ローディング後に別ページへ遷移
-      router.push(`/quests`);
+      // 3) 生成完了後、微調整エディターへ遷移
+      router.push(`/report-preview/${projectId}`);
     } catch (e) {
       console.error("handleCreateReport error:", e);
       setReportError("報告書の作成に失敗しました…");
