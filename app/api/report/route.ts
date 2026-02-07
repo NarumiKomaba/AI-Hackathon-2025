@@ -1,35 +1,8 @@
 import { NextResponse } from "next/server";
-import admin from "firebase-admin";
-import fs from "node:fs";
-import path from "node:path";
 import { GoogleGenAI } from "@google/genai";
+import { adminDb } from "@/lib/firebaseAdmin";
+
 export const runtime = "nodejs";
-
-/* ================================
-   Firestore Admin init
-================================ */
-function initFirestoreAdmin() {
-  if (admin.apps.length) return admin.firestore();
-
-  const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  if (!credPath) throw new Error("GOOGLE_APPLICATION_CREDENTIALS is not set");
-
-  const abs = path.isAbsolute(credPath)
-    ? credPath
-    : path.join(process.cwd(), credPath);
-
-  if (!fs.existsSync(abs)) {
-    throw new Error(`service account json not found: ${abs}`);
-  }
-
-  const serviceAccount = JSON.parse(fs.readFileSync(abs, "utf-8"));
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-
-  return admin.firestore();
-}
 
 /* ================================
    Firestore helpers
@@ -84,7 +57,7 @@ function buildPmoWeeklySlidesPrompt(params: {
 あなたは大規模システム開発プロジェクトの優秀なPMO（プロジェクトマネジメントオフィス）担当者です。
 以下の4つの[入力データ]を分析・統合し、経営層およびチームに向けた「週次進捗報告」のPowerPointスライド構成案を作成してください。
 
-出力は、後続のPythonスクリプトで自動処理するため、必ず**指定されたJSON形式**のみを出力してください。
+出力は、後続のスクリプトで自動処理するため、必ず**指定されたJSON形式**のみを出力してください。
 
 # 前提条件（トーン、マナー、フォーマット）
 - 目的: プロジェクト進捗報告および承認獲得
@@ -270,14 +243,13 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({})) as { projectId?: string; note?: string };
     const projectId = body.projectId || "dummy_projectId";
-    const db = initFirestoreAdmin();
 
     const [wbs_items, issue_items, chat_messages, profit_items] =
       await Promise.all([
-        fetchByProjectEitherKey(db, "wbs_items", projectId, 800),
-        fetchByProjectEitherKey(db, "issue_items", projectId, 800),
-        fetchByProjectEitherKey(db, "chat_messages", projectId, 800),
-        fetchByProjectEitherKey(db, "profit_items", projectId, 800),
+        fetchByProjectEitherKey(adminDb, "wbs_items", projectId, 800),
+        fetchByProjectEitherKey(adminDb, "issue_items", projectId, 800),
+        fetchByProjectEitherKey(adminDb, "chat_messages", projectId, 800),
+        fetchByProjectEitherKey(adminDb, "profit_items", projectId, 800),
       ]);
 
     const prompt = buildPmoWeeklySlidesPrompt({

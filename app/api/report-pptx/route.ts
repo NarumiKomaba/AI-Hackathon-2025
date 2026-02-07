@@ -235,7 +235,7 @@ function addHeaderFooter(slide: SlideLike, pageNumStr: string) {
   });
 
   // 右下ページ番号
-  slide.addText(`© 2024 CTC Financial Services Group All right reserved.   ${pageNumStr}`, {
+  slide.addText(`© 2025 CTC Financial Services Group All rights reserved.   ${pageNumStr}`, {
     x: 7.0,
     y: 7.05,
     w: 6.2,

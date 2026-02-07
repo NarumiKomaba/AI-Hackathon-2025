@@ -198,9 +198,6 @@ export default function BoardPage() {
   const selected = quests.find((q) => q.id === selectedId)!;
   const partyScrollRef = useRef<HTMLDivElement | null>(null);
   const [showPartyArrow, setShowPartyArrow] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
 
   const handleJoin = () => {
     setQuests((prev) =>
@@ -358,8 +355,6 @@ const recommendedLevel = Math.min(99, Math.max(1, Math.round(durationDays / 3)))
       }
 
       // 3. setQuests の実行
-    // ここで、この関数を呼び出すコンポーネントの setQuests を呼び出す必要があります。
-    setQuests([]);
     setQuests(combinedQuests);
     return combinedQuests;
 };

@@ -6,7 +6,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 import * as XLSX from 'xlsx';
 import {
-  getFirebaseStorage,
   getFirebaseFirestore,
 } from "@/lib/firebaseClient";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, Timestamp } from "firebase/firestore";
@@ -118,7 +117,7 @@ function GuildSubmitPageInner() {
       alert("成功しました");
       }
     } catch (err) {
-      console.error("handleCreateQuestDraft error:", err);
+      console.error("handleSubmit error:", err);
       setMessage("資料のアップロードに失敗しました...");
     } finally {
       setUploading(false);
@@ -126,8 +125,6 @@ function GuildSubmitPageInner() {
   };
 
   const saveToFirestore = async (data: WbsRow[], fileName: string) => {
-
-    const storage = getFirebaseStorage();
     const db = getFirebaseFirestore();
     const batch = writeBatch(db);
     const collectionRef = collection(db, "wbs_items");

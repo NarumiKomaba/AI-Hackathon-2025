@@ -1,48 +1,8 @@
 import { NextResponse } from "next/server";
-import admin from "firebase-admin";
-import fs from "node:fs";
-import path from "node:path";
 import { VertexAI } from "@google-cloud/vertexai";
+import { adminDb } from "@/lib/firebaseAdmin";
 
 export const runtime = "nodejs";
-
-/* ================================
-   Firestore Admin init
-================================ */
-function initFirestoreAdmin(): FirebaseFirestore.Firestore {
-  if (admin.apps.length) return admin.firestore();
-
-  const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  if (!credPath) throw new Error("GOOGLE_APPLICATION_CREDENTIALS is not set");
-
-  const abs = path.isAbsolute(credPath) ? credPath : path.join(process.cwd(), credPath);
-  if (!fs.existsSync(abs)) throw new Error(`service account json not found: ${abs}`);
-
-  const serviceAccount = JSON.parse(fs.readFileSync(abs, "utf-8")) as unknown;
-
-  // firebase-admin の cert は ServiceAccount 形状を要求するので、最低限のガードを通す
-  if (!isServiceAccount(serviceAccount)) {
-    throw new Error("service account json is invalid (missing required fields)");
-  }
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-
-  return admin.firestore();
-}
-
-function isServiceAccount(v: unknown): v is admin.ServiceAccount {
-  if (typeof v !== "object" || v === null) return false;
-  const o = v as Record<string, unknown>;
-
-  // cert() に必要になりがちなキー群を軽く確認（過剰には縛らない）
-  return (
-    typeof o.project_id === "string" &&
-    typeof o.client_email === "string" &&
-    typeof o.private_key === "string"
-  );
-}
 
 /* ================================
    Vertex init
@@ -337,9 +297,7 @@ export async function POST(req: Request): Promise<Response> {
   try {
     const body = await req.json().catch(() => ({})) as { projectId?: string };
     const projectId = body.projectId || "dummy_projectId";
-    const db = initFirestoreAdmin();
-
-    const statusDoc = await fetchLatestProjectStatusByEitherKey(db, projectId);
+    const statusDoc = await fetchLatestProjectStatusByEitherKey(adminDb, projectId);
 
     // 入力は project_status.summary の4要約のみ
     const fourSummaryText = buildFourSummaryText(statusDoc?.summary);
