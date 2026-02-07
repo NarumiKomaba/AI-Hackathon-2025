@@ -333,9 +333,10 @@ function fallbackComment(summaryText: string): string {
 /* ================================
    Route
 ================================ */
-export async function POST(): Promise<Response> {
+export async function POST(req: Request): Promise<Response> {
   try {
-    const projectId = "dummy_projectId"; // ★必要なら body から受け取る
+    const body = await req.json().catch(() => ({})) as { projectId?: string };
+    const projectId = body.projectId || "dummy_projectId";
     const db = initFirestoreAdmin();
 
     const statusDoc = await fetchLatestProjectStatusByEitherKey(db, projectId);

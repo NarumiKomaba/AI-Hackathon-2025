@@ -5,13 +5,11 @@ import ProjectQuestLayout from "@/components/layout/ProjectQuestLayout";
 import { useSearchParams, useRouter } from "next/navigation";
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 import * as XLSX from 'xlsx';
-import { setMaxIdleHTTPParsers } from "http";
 import {
   getFirebaseStorage,
   getFirebaseFirestore,
 } from "@/lib/firebaseClient";
-import { collection, addDoc, serverTimestamp, writeBatch, doc } from "firebase/firestore";
-import { Timestamp } from "firebase-admin/firestore";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, Timestamp } from "firebase/firestore";
 
 type Quest = {
   id: string;
@@ -167,7 +165,7 @@ function GuildSubmitPageInner() {
   const [reportError, setReportError] = useState("");
 
   const handleCreateReport = async () => {
-    const projectId = "dummy_projectId";
+    const projectId = selectedQuestId;
 
     // ★ 前回の結果をリセット
     setReportError("");
@@ -179,7 +177,7 @@ function GuildSubmitPageInner() {
       const r1 = await fetch("/api/report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note }),
+        body: JSON.stringify({ projectId, note }),
       });
 
       if (!r1.ok) {

@@ -266,9 +266,10 @@ export async function generateWeeklySlidesJson(prompt: string) {
 /* ================================
    Route
 ================================ */
-export async function POST() {
+export async function POST(req: Request) {
   try {
-    const projectId = "dummy_projectId";
+    const body = await req.json().catch(() => ({})) as { projectId?: string; note?: string };
+    const projectId = body.projectId || "dummy_projectId";
     const db = initFirestoreAdmin();
 
     const [wbs_items, issue_items, chat_messages, profit_items] =

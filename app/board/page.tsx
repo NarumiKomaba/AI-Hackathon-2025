@@ -15,8 +15,7 @@ import {
   serverTimestamp,
   where,
 } from "firebase/firestore";
-import { ReactCompilerRuntime } from "next/dist/server/route-modules/app-page/vendored/rsc/entrypoints";
-import { Timestamp } from "firebase-admin/firestore";
+import { Timestamp } from "firebase/firestore";
 
 type BoardQuestStatus = "参加中" | "募集中";
 
