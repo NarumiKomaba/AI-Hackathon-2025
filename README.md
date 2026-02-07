@@ -29,6 +29,27 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## 🧪 End-to-End Testing
+
+We use [Playwright](https://playwright.dev/) for E2E testing to ensure the "AI Council Room" and other core features work seamlessly.
+
+### How to Run Tests
+1. **Install Browsers** (First time only):
+   ```bash
+   npx playwright install
+   ```
+2. **Execute Tests**:
+   ```bash
+   npm run test:e2e
+   ```
+   *Note: The test script automatically starts the development server if it's not already running.*
+
+## 📚 Documentation
+
+For a deep dive into the project's architecture, AI prompt engineering, and the "Explosive Speed" design philosophy, please refer to our detailed documentation:
+
+- [**Detailed Design Document**](./doc/detailed_design.md) - Includes multi-agent system design, prompt strategies (Fact Projection, Breakthrough), and absolute parsing logic.
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.

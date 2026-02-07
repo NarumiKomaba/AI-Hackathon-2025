@@ -44,3 +44,12 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: #a98467; /* ホバー時はさらに濃く */
 }
+
+/* スクロールバーを隠すユーティリティ */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

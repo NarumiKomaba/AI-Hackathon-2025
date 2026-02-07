@@ -54,6 +54,7 @@ export default function ProjectQuestLayout({
             src="/images/Group 53.png"
             alt="Project Quest Logo"
             fill
+            sizes="256px"
             className="object-contain"
           />
         </div>
@@ -67,7 +68,7 @@ export default function ProjectQuestLayout({
             return (
               <Link key={item.href} href={item.href} className="relative block">
                 <div className="relative w-40 h-12">
-                  <Image src={src} alt="" fill className="object-contain" />
+                  <Image src={src} alt="" fill sizes="160px" className="object-contain" />
                 </div>
               </Link>
             );
@@ -84,6 +85,7 @@ export default function ProjectQuestLayout({
           src="/images/back.png"
           alt="背景ボード"
           fill
+          sizes="1600px"
           className="object-contain"
         />
 
