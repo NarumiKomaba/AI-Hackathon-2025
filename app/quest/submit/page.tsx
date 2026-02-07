@@ -90,9 +90,12 @@ function GuildSubmitPageInner() {
       return;
     }
 
+    if (!confirm("ファイル名：「" + fileName + "」を提出しますか？")) {
+      return;
+    }
+
     setUploading(true);
     setMessage("");
-    alert("ファイル名：「" +fileName+ "」を提出しますか？");
 
      try {
 

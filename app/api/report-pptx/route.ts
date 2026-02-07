@@ -834,11 +834,11 @@ export async function POST(req: Request) {
       console.error("❌ /api/report-pptx failed:", e.message);
       console.error(e.stack);
 
-      return NextResponse.json({ error: e.message, stack: e.stack ?? null }, { status: 500 });
+      return NextResponse.json({ error: e.message }, { status: 500 });
     }
 
     console.error("❌ /api/report-pptx failed:", e);
 
-    return NextResponse.json({ error: "unknown error", stack: null }, { status: 500 });
+    return NextResponse.json({ error: "unknown error" }, { status: 500 });
   }
 }

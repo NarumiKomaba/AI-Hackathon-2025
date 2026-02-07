@@ -293,7 +293,7 @@ export default function BoardPage() {
                     id: member.member_id, // DBからのユニークIDを使用
                     name: member.member_name,
                     filled: true,
-                    isYou: true,
+                    isYou: member.role === "勇者", // 勇者ロールのみ「あなた」
                 });
             } else {
                 // メンバーが見つからなかった場合、テンプレートの空きスロットをそのまま使用
@@ -333,8 +333,8 @@ const durationDays = Math.max(
   ) + 1
 );
 
-// 仮のレコメンドレベル
-const recommendedLevel = Math.round(Math.random() * 100);
+// 経過日数からレコメンドレベルを算出（日数が長いほど高い）
+const recommendedLevel = Math.min(99, Math.max(1, Math.round(durationDays / 3)));
 
         // c. 結合された BoardQuest オブジェクトの作成
         const finalQuest: BoardQuest = {
