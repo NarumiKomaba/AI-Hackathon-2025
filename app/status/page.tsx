@@ -1,44 +1,98 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import ProjectQuestLayout from "@/components/layout/ProjectQuestLayout";
+import { LoadingOverlay } from "@/components/common/LoadingOverlay";
+
+type CharacterStatus = {
+    name: string;
+    title: string;
+    level: number;
+    exp: number;
+    expMax: number;
+    mainRole: string;
+    currentQuest: string;
+    equipment: {
+        weapon: string;
+        armor: string;
+        accessory: string;
+        cloak: string;
+    };
+    baseStats: {
+        hp: number;
+        agi: number;
+        atk: number;
+        def: number;
+        weak: number;
+    };
+    skills: { key: string; label: string; exp: number; max: number; rank: string }[];
+};
+
+const DEFAULT_PROJECT_ID = "core-system";
 
 export default function StatusPage() {
-    const status = {
-        name: "駒場（あなた）",
-        title: "プロジェクトの勇者",
-        level: 12,
-        exp: 128,
-        expMax: 200,
-        mainRole: "PM / PoC 推進",
-        currentQuest: "基幹システム刷新 編",
-        equipment: {
-            weapon: "スライドデッキ＋AI要約",
-            armor: "議事録自動化の鎧",
-            accessory: "オンプレ LLM の魔石",
-            cloak: "残業のマント（できれば脱ぎたい）",
-        },
-        baseStats: {
-            hp: 57,
-            agi: 13,
-            atk: 34,
-            def: 39,
-            weak: 31,
-        },
-        skills: [
-            { key: "pm", label: "PM", exp: 8, max: 10, rank: "熟練者" },
-            { key: "ai", label: "AI", exp: 6, max: 10, rank: "中級者" },
-            { key: "onprem", label: "オンプレLLM", exp: 4, max: 10, rank: "見習い" },
-            { key: "infra", label: "インフラ構築", exp: 3, max: 10, rank: "見習い" },
-        ],
-    };
+    const [status, setStatus] = useState<CharacterStatus | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function fetchStatus() {
+            try {
+                const res = await fetch("/api/character-status", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ projectId: DEFAULT_PROJECT_ID }),
+                });
+
+                if (!res.ok) throw new Error("ステータス取得に失敗しました");
+
+                const data = await res.json();
+                if (!cancelled) {
+                    setStatus(data.status);
+                }
+            } catch (e) {
+                console.error("Status fetch error:", e);
+                if (!cancelled) {
+                    setError("ステータスの生成に失敗しました…");
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        }
+
+        fetchStatus();
+        return () => { cancelled = true; };
+    }, []);
 
     return (
         <ProjectQuestLayout>
-            <div className="h-full flex gap-6 px-10">
-                <LeftCharacterCard status={status} />
-                <RightStatusPanel status={status} />
-            </div>
+            <LoadingOverlay show={loading} />
+
+            {error && !loading && (
+                <div className="h-full flex items-center justify-center">
+                    <div className="text-center text-[#3b2a1a]">
+                        <p className="text-lg font-semibold mb-2">{error}</p>
+                        <button
+                            onClick={() => window.location.reload()}
+                            className="text-sm underline opacity-80 hover:opacity-100"
+                        >
+                            再読み込み
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {status && !loading && (
+                <div className="h-full flex gap-6 px-10">
+                    <LeftCharacterCard status={status} />
+                    <RightStatusPanel status={status} />
+                </div>
+            )}
         </ProjectQuestLayout>
     );
 }
