@@ -4,6 +4,15 @@ import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ProjectQuestLayout from "@/components/layout/ProjectQuestLayout";
+import { LoadingOverlay } from "@/components/common/LoadingOverlay";
+import { getFirebaseFirestore } from "@/lib/firebaseClient";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  Timestamp,
+} from "firebase/firestore";
 
 type QuestStatus = "進行中" | "未着手" | "期限切れ";
 
@@ -30,7 +39,6 @@ type QuestDetail = {
   questId: string;
   metrics: ProgressMetric[];
   debuffs: Debuff[];
-  guildMasterComment: string;
 };
 
 type Task = {
@@ -40,8 +48,8 @@ type Task = {
   due: string; // "YYYY-MM-DD"
   status: "未着手" | "進行中" | "完了";
   progress: number; // 0-100
-  parentId: string;    // 行のID（env / prod / future など）
-  parentLabel: string; // 行に表示する名前（環境構築 / 本番利用に向けた検証 など）
+  parentId: string;
+  parentLabel: string;
 };
 
 type TabKey = "progress" | "gantt" | "tasks";
@@ -53,200 +61,223 @@ type GuildMasterCommentResponse = {
   mood: GuildMasterMood;
 };
 
-// -------------------- モックデータ --------------------
+/* ================================
+   Firestore → Quest 変換ヘルパー
+================================ */
+function computeElapsedDays(startDate: unknown): number {
+  if (!startDate) return 0;
+  let ms: number;
+  if (startDate instanceof Timestamp) {
+    ms = startDate.toMillis();
+  } else if (typeof startDate === "object" && startDate !== null && "seconds" in startDate) {
+    ms = (startDate as { seconds: number }).seconds * 1000;
+  } else {
+    return 0;
+  }
+  return Math.max(0, Math.floor((Date.now() - ms) / (1000 * 60 * 60 * 24)));
+}
 
-const QUESTS: Quest[] = [
-  {
-    id: "core-system",
-    title: "基幹システム刷新 編",
-    recommendedLevel: 36,
-    elapsedDays: 120,
-    status: "進行中",
-  },
-  {
-    id: "sales-ui",
-    title: "営業支援アプリ UI 改修",
-    recommendedLevel: 18,
-    elapsedDays: 45,
-    status: "未着手",
-  },
-  {
-    id: "onprem-llm",
-    title: "オンプレ LLM 検証クエスト",
-    recommendedLevel: 24,
-    elapsedDays: 60,
-    status: "進行中",
-  },
-];
-
-const QUEST_DETAILS: QuestDetail[] = [
-  {
-    questId: "core-system",
-    metrics: [
-      { label: "AGI（進捗）", key: "agi", value: 65 },
-      { label: "HP（コスト）", key: "hp", value: 45 },
-      { label: "EXP（タスク）", key: "exp", value: 40 },
-    ],
-    debuffs: [
-      { id: "meeting-hell", label: "会議地獄（集中力低下）" },
-      { id: "night-call", label: "夜間緊急依頼（呪い）" },
-    ],
-    guildMasterComment:
-      "勇者よ、このままでは HP が尽きかけておる。会議を整理し、優先度の低い依頼から一度荷物を降ろすのじゃ。移行リハーサルの準備も忘れるでないぞ。",
-  },
-  {
-    questId: "sales-ui",
-    metrics: [
-      { label: "AGI（進捗）", key: "agi", value: 10 },
-      { label: "HP（コスト）", key: "hp", value: 5 },
-      { label: "EXP（タスク）", key: "exp", value: 15 },
-    ],
-    debuffs: [{ id: "requirement-fog", label: "要件モヤモヤ（視界不良）" }],
-    guildMasterComment:
-      "ユーザーインタビューの準備を整えよ。真の課題はお客様の一言の中に潜んでおるぞ。",
-  },
-  {
-    questId: "onprem-llm",
-    metrics: [
-      { label: "AGI（進捗）", key: "agi", value: 55 },
-      { label: "HP（コスト）", key: "hp", value: 60 },
-      { label: "EXP（タスク）", key: "exp", value: 50 },
-    ],
-    debuffs: [
-      { id: "gpu-heat", label: "GPU 熱暴走" },
-      { id: "policy-maze", label: "ポリシー迷宮" },
-    ],
-    guildMasterComment:
-      "検証観点は十分か？セキュリティ・精度・運用コスト、その三つ巴をバランスよく見極めるのじゃ。",
-  },
-];
-
-const TASKS_BY_QUEST: Record<string, Task[]> = {
-  "core-system": [
-    {
-      id: "env-setup",
-      title: "環境構築",
-      owner: "未選択",
-      due: "2025-12-03",
-      status: "進行中",
-      progress: 20,
-      parentId: "env",
-      parentLabel: "環境構築",
-    },
-    {
-      id: "dir-env",
-      title: "DIR 環境",
-      owner: "大和",
-      due: "2025-12-03",
-      status: "進行中",
-      progress: 60,
-      parentId: "env",
-      parentLabel: "環境構築",
-    },
-    {
-      id: "dynamo-env",
-      title: "DynamoAI 環境構築",
-      owner: "小﨑",
-      due: "2025-12-06",
-      status: "進行中",
-      progress: 40,
-      parentId: "env",
-      parentLabel: "環境構築",
-    },
-    {
-      id: "prod-test",
-      title: "本番利用に向けた検証",
-      owner: "駒場",
-      due: "2025-12-07",
-      status: "完了",
-      progress: 100,
-      parentId: "prod",
-      parentLabel: "本番利用に向けた検証",
-    },
-    {
-      id: "safety",
-      title: "セーフティ",
-      owner: "未選択",
-      due: "2025-12-09",
-      status: "未着手",
-      progress: 0,
-      parentId: "future",
-      parentLabel: "今後の発展に向けた検証",
-    },
-  ],
-  "sales-ui": [
-    {
-      id: "hearing",
-      title: "営業担当ヒアリング",
-      owner: "駒場",
-      due: "2025-12-10",
-      status: "進行中",
-      progress: 30,
-      parentId: "research",
-      parentLabel: "要件整理・ヒアリング",
-    },
-  ],
-  "onprem-llm": [
-    {
-      id: "whisper-eval",
-      title: "文字起こし精度検証",
-      owner: "中澤",
-      due: "2025-12-08",
-      status: "進行中",
-      progress: 50,
-      parentId: "eval",
-      parentLabel: "検証タスク",
-    },
-  ],
-};
+function computeRecommendedLevel(durationDays: number): number {
+  if (durationDays <= 30) return Math.max(1, Math.round(durationDays * 0.5));
+  if (durationDays <= 90) return Math.round(15 + (durationDays - 30) * 0.35);
+  return Math.round(36 + (durationDays - 90) * 0.2);
+}
 
 // -------------------- ページコンポーネント --------------------
 
 export default function QuestManagementPage() {
   const router = useRouter();
-  const [selectedQuestId, setSelectedQuestId] = useState<string>(
-    QUESTS[0]?.id ?? ""
-  );
+
+  // Firestore データ
+  const [quests, setQuests] = useState<Quest[]>([]);
+  const [tasksByQuest, setTasksByQuest] = useState<Record<string, Task[]>>({});
+  const [pageLoading, setPageLoading] = useState(true);
+
+  // 選択状態
+  const [selectedQuestId, setSelectedQuestId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<TabKey>("progress");
+
+  // AI生成: メトリクス・デバフ
+  const [questDetails, setQuestDetails] = useState<Record<string, QuestDetail>>({});
+  const [metricsLoading, setMetricsLoading] = useState(false);
+
+  // ギルドマスターコメント
   const [gmComment, setGmComment] = useState<string>("");
   const [gmMood, setGmMood] = useState<GuildMasterMood>("normal");
   const [gmLoading, setGmLoading] = useState(false);
   const [gmError, setGmError] = useState<string>("");
 
-  const selectedQuest = QUESTS.find((q) => q.id === selectedQuestId)!;
-  const detail = QUEST_DETAILS.find((d) => d.questId === selectedQuestId)!;
-  const tasks = TASKS_BY_QUEST[selectedQuestId] ?? [];
+  const selectedQuest = quests.find((q) => q.id === selectedQuestId);
+  const detail = questDetails[selectedQuestId];
+  const tasks = tasksByQuest[selectedQuestId] ?? [];
 
-  // ▼▼▼ ここに追加：選択クエストが変わったらAIで一言生成 ▼▼▼
+  // ▼ Firestore からクエスト一覧 + WBSタスクを取得
   useEffect(() => {
+    let cancelled = false;
+
+    async function fetchAll() {
+      try {
+        const db = getFirebaseFirestore();
+
+        // クエスト一覧取得
+        const questSnap = await getDocs(collection(db, "testProjects"));
+        const fetchedQuests: Quest[] = questSnap.docs.map((doc) => {
+          const data = doc.data();
+          const elapsed = computeElapsedDays(data.start_date);
+          // ステータス判定
+          let status: QuestStatus = "未着手";
+          if (data.status === "参加中" || data.status === "進行中") {
+            status = "進行中";
+          } else if (data.status === "期限切れ") {
+            status = "期限切れ";
+          }
+          return {
+            id: doc.id,
+            title: data.name || data.title || doc.id,
+            recommendedLevel: computeRecommendedLevel(elapsed),
+            elapsedDays: elapsed,
+            status,
+          };
+        });
+
+        if (cancelled) return;
+        setQuests(fetchedQuests);
+        if (fetchedQuests.length > 0) {
+          setSelectedQuestId(fetchedQuests[0].id);
+        }
+
+        // 各クエストのWBSタスクを取得
+        const allTasks: Record<string, Task[]> = {};
+        for (const q of fetchedQuests) {
+          const wbsSnap = await getDocs(
+            query(collection(db, "wbs_items"), where("projectId", "==", q.id))
+          );
+          let wbsTasks = wbsSnap.docs.map((d) => {
+            const w = d.data();
+            return {
+              id: d.id,
+              title: w.title || w.name || d.id,
+              owner: w.owner || w.assignee || "未選択",
+              due: w.due || w.due_date || w.end_date || "未定",
+              status: (w.status === "完了" ? "完了" : w.status === "進行中" ? "進行中" : "未着手") as Task["status"],
+              progress: typeof w.progress === "number" ? w.progress : (w.status === "完了" ? 100 : 0),
+              parentId: w.parentId || w.parent_id || w.category || "default",
+              parentLabel: w.parentLabel || w.parent_label || w.category_name || w.title || "タスク",
+            };
+          });
+
+          // project_id フィールドでも試す
+          if (wbsTasks.length === 0) {
+            const wbsSnap2 = await getDocs(
+              query(collection(db, "wbs_items"), where("project_id", "==", q.id))
+            );
+            wbsTasks = wbsSnap2.docs.map((d) => {
+              const w = d.data();
+              return {
+                id: d.id,
+                title: w.title || w.name || d.id,
+                owner: w.owner || w.assignee || "未選択",
+                due: w.due || w.due_date || w.end_date || "未定",
+                status: (w.status === "完了" ? "完了" : w.status === "進行中" ? "進行中" : "未着手") as Task["status"],
+                progress: typeof w.progress === "number" ? w.progress : (w.status === "完了" ? 100 : 0),
+                parentId: w.parentId || w.parent_id || w.category || "default",
+                parentLabel: w.parentLabel || w.parent_label || w.category_name || w.title || "タスク",
+              };
+            });
+          }
+
+          allTasks[q.id] = wbsTasks;
+        }
+
+        if (!cancelled) {
+          setTasksByQuest(allTasks);
+        }
+      } catch (e) {
+        console.error("Quests fetch error:", e);
+      } finally {
+        if (!cancelled) setPageLoading(false);
+      }
+    }
+
+    fetchAll();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ▼ クエスト選択時: AI メトリクス・デバフ取得
+  useEffect(() => {
+    if (!selectedQuestId || !selectedQuest) return;
+    // キャッシュ済みなら再取得しない
+    if (questDetails[selectedQuestId]) return;
+
+    let cancelled = false;
+    setMetricsLoading(true);
+
+    async function fetchMetrics() {
+      try {
+        const res = await fetch("/api/quest-metrics", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: selectedQuestId,
+            questTitle: selectedQuest!.title,
+          }),
+        });
+
+        if (!res.ok) throw new Error("メトリクス取得失敗");
+        const data = await res.json();
+
+        if (!cancelled) {
+          setQuestDetails((prev) => ({
+            ...prev,
+            [selectedQuestId]: {
+              questId: selectedQuestId,
+              metrics: data.metrics || [],
+              debuffs: data.debuffs || [],
+            },
+          }));
+        }
+      } catch (e) {
+        console.error("Quest metrics fetch error:", e);
+        if (!cancelled) {
+          // フォールバック
+          setQuestDetails((prev) => ({
+            ...prev,
+            [selectedQuestId]: {
+              questId: selectedQuestId,
+              metrics: [
+                { label: "AGI（進捗）", key: "agi", value: 0 },
+                { label: "HP（コスト）", key: "hp", value: 0 },
+                { label: "EXP（タスク）", key: "exp", value: 0 },
+              ],
+              debuffs: [],
+            },
+          }));
+        }
+      } finally {
+        if (!cancelled) setMetricsLoading(false);
+      }
+    }
+
+    fetchMetrics();
+    return () => { cancelled = true; };
+  }, [selectedQuestId]);
+
+  // ▼ クエスト選択時: ギルドマスターコメント生成
+  useEffect(() => {
+    if (!selectedQuestId || !selectedQuest) return;
+
     let canceled = false;
+    setGmError("");
+    setGmLoading(true);
+    setGmComment("…ふむふむ、このプロジェクトの状況はどうかな。");
+    setGmMood("normal");
 
     async function run() {
-      setGmError("");
-      setGmLoading(true);
-
-      setGmComment(detail.guildMasterComment);
-      setGmMood("normal");
-
       try {
         const res = await fetch("/api/guildmaster-comment", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            questTitle: selectedQuest.title,
-            recommendedLevel: selectedQuest.recommendedLevel,
-            elapsedDays: selectedQuest.elapsedDays,
-            status: selectedQuest.status,
-            metrics: detail.metrics,
-            debuffs: detail.debuffs,
-            tasks: tasks.map((t) => ({
-              title: t.title,
-              owner: t.owner,
-              due: t.due,
-              status: t.status,
-              progress: t.progress,
-            })),
-          }),
+          body: JSON.stringify({ projectId: selectedQuestId }),
         });
 
         const json: unknown = await res.json();
@@ -264,7 +295,6 @@ export default function QuestManagementPage() {
         }
 
         const data = json as Partial<GuildMasterCommentResponse>;
-
         const comment = typeof data.comment === "string" ? data.comment : "";
         const mood: GuildMasterMood =
           data.mood === "smile" || data.mood === "strict" || data.mood === "normal"
@@ -283,12 +313,39 @@ export default function QuestManagementPage() {
     }
 
     run();
-    return () => {
-      canceled = true;
-    };
-  }, [selectedQuestId]); // ★ クエスト切替で生成
-  // ▲▲▲ ここまで追加 ▲▲▲
+    return () => { canceled = true; };
+  }, [selectedQuestId]);
 
+
+  // ▼ ローディング中
+  if (pageLoading) {
+    return (
+      <ProjectQuestLayout>
+        <LoadingOverlay show={true} />
+      </ProjectQuestLayout>
+    );
+  }
+
+  // ▼ クエストが無い場合
+  if (quests.length === 0) {
+    return (
+      <ProjectQuestLayout>
+        <div className="h-full flex items-center justify-center">
+          <div className="text-center text-[#3b2a1a]">
+            <p className="text-lg font-semibold mb-2">クエストがまだありません</p>
+            <button
+              onClick={() => router.push("/quest/new")}
+              className="text-sm underline opacity-80 hover:opacity-100"
+            >
+              新しいクエストを作成する
+            </button>
+          </div>
+        </div>
+      </ProjectQuestLayout>
+    );
+  }
+
+  if (!selectedQuest) return null;
 
   return (
     <ProjectQuestLayout>
@@ -311,7 +368,7 @@ export default function QuestManagementPage() {
             </h2>
 
             <div className="space-y-4 flex-1 overflow-y-auto pr-1">
-              {QUESTS.map((quest) => {
+              {quests.map((quest) => {
                 const isActive = quest.id === selectedQuestId;
 
                 const statusClass =
@@ -373,7 +430,7 @@ export default function QuestManagementPage() {
 
         {/* 右：見出し＋タブ＋内容＋提出ボタン */}
         <section className="flex-1 flex flex-col">
-          {/* 見出しボード（お手本ページと同じ構成） */}
+          {/* 見出しボード */}
           <div className="relative h-20 mb-4 shrink-0">
             <Image
               src="/images/見出し@144x.png"
@@ -394,7 +451,7 @@ export default function QuestManagementPage() {
           </div>
 
           <div className="flex-1 flex flex-col">
-            {/* タブ行：下端をそろえる＋余計な余白なし */}
+            {/* タブ行 */}
             <div className="flex items-end gap-2 px-8 pt-3 pb-0">
               <TabButton
                 label="進捗状況"
@@ -413,12 +470,13 @@ export default function QuestManagementPage() {
               />
             </div>
 
-            {/* コンテンツ：タブ直下から開始（ベージュ背景） */}
+            {/* コンテンツ */}
             <div className="px-8 pt-0 pb-6 bg-[#F7F1E3] mt-[-7px] h-[490px]">
               {activeTab === "progress" && (
                 <div className="h-full overflow-y-auto pr-1">
                   <ProgressView
                     detail={detail}
+                    metricsLoading={metricsLoading}
                     guildMasterComment={gmComment}
                     mood={gmMood}
                     loading={gmLoading}
@@ -436,7 +494,7 @@ export default function QuestManagementPage() {
               )}
             </div>
 
-            {/* ギルドマスターに提出ボタン（ベージュの外・右寄せ） */}
+            {/* ギルドマスターに提出ボタン */}
             <div className="w-full flex justify-end gap-4 pt-3">
               <button
                 type="button"
@@ -525,12 +583,14 @@ function SectionHeading({ children }: { children: ReactNode }) {
 
 function ProgressView({
   detail,
+  metricsLoading,
   guildMasterComment,
   mood,
   loading,
   error,
 }: {
-  detail: QuestDetail;
+  detail: QuestDetail | undefined;
+  metricsLoading: boolean;
   guildMasterComment: string;
   mood: GuildMasterMood;
   loading: boolean;
@@ -543,45 +603,63 @@ function ProgressView({
         ? "/images/master.png"
         : "/images/master_smile.png";
 
+  const metrics = detail?.metrics ?? [
+    { label: "AGI（進捗）", key: "agi" as const, value: 0 },
+    { label: "HP（コスト）", key: "hp" as const, value: 0 },
+    { label: "EXP（タスク）", key: "exp" as const, value: 0 },
+  ];
+  const debuffs = detail?.debuffs ?? [];
+
   return (
     <div className="flex flex-col gap-6 pt-4">
       {/* 上段：進行状況 vs デバフ */}
       <div className="flex flex-col md:flex-row gap-8">
-        {/* 左：ドーナツ3つ（大きめ） */}
+        {/* 左：ドーナツ3つ */}
         <div className="md:w-2/3">
           <SectionHeading>進行状況</SectionHeading>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {detail.metrics.map((m) => (
-              <div key={m.key} className="flex flex-col items-center gap-2">
-                <Donut value={m.value} />
-                <div className="text-sm font-medium text-gray-800">
-                  {m.label}
+          {metricsLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <p className="text-sm text-[#5C3B23] animate-pulse">AIが分析中…</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {metrics.map((m) => (
+                <div key={m.key} className="flex flex-col items-center gap-2">
+                  <Donut value={m.value} />
+                  <div className="text-sm font-medium text-gray-800">
+                    {m.label}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 右：デバフ */}
         <div className="md:w-1/3">
           <SectionHeading>状態異常（デバフ）</SectionHeading>
-          <div className="flex flex-wrap gap-2">
-            {detail.debuffs.map((d) => (
-              <span
-                key={d.id}
-                className="inline-flex items-center px-3 py-1 rounded-full border border-[#0071A9] text-[11px] text-[#0071A9] bg-white"
-              >
-                {d.label}
-              </span>
-            ))}
-          </div>
+          {metricsLoading ? (
+            <p className="text-sm text-[#5C3B23] animate-pulse">分析中…</p>
+          ) : debuffs.length === 0 ? (
+            <p className="text-xs text-gray-500">状態異常なし</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {debuffs.map((d) => (
+                <span
+                  key={d.id}
+                  className="inline-flex items-center px-3 py-1 rounded-full border border-[#0071A9] text-[11px] text-[#0071A9] bg-white"
+                >
+                  {d.label}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {/* ギルドマスターコメント */}
       <div>
         <div className="flex items-stretch gap-6 bg-[#8A2F2F] rounded-xl px-4 text-white">
-          {/* ギルドマスター画像：さらに大きく */}
           <div className="relative w-40 h-40 md:w-44 md:h-44 flex-shrink-0">
             <Image
               src={masterSrc}
@@ -596,7 +674,7 @@ function ProgressView({
               ギルドマスターの一言
             </div>
             <p className="text-xs md:text-sm leading-relaxed whitespace-pre-line">
-              {loading ? "…ふむふむ、、このプロジェクトの状況はどうかな。" : guildMasterComment}
+              {loading ? "…ふむふむ、このプロジェクトの状況はどうかな。" : guildMasterComment}
               {error ? `\n（生成失敗：${error}）` : ""}
             </p>
           </div>
@@ -627,19 +705,17 @@ function Donut({ value }: { value: number }) {
   );
 }
 
-const DAY_COLUMN_WIDTH = 56;      // 日付列の横幅
-const LABEL_COLUMN_WIDTH = 220;   // 左ラベルの横幅
+const DAY_COLUMN_WIDTH = 56;
+const LABEL_COLUMN_WIDTH = 220;
 
 function GanttView({ tasks }: { tasks: Task[] }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // ---- Hook は先に定義しておく ----
   const parsedTasks = tasks.map((t) => ({
     ...t,
     dueDate: new Date(t.due),
   }));
 
-  // プロジェクト開始〜終了に、今日も必ず含めた日付リスト
   const dayList: Date[] = (() => {
     if (parsedTasks.length === 0) return [];
 
@@ -672,7 +748,6 @@ function GanttView({ tasks }: { tasks: Task[] }) {
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate();
 
-  // 親タスク行
   const parentMap = new Map<string, string>();
   parsedTasks.forEach((t) => {
     if (!parentMap.has(t.parentId)) parentMap.set(t.parentId, t.parentLabel);
@@ -682,7 +757,6 @@ function GanttView({ tasks }: { tasks: Task[] }) {
     label,
   }));
 
-  // ★ 今日の列が左側に来るようにスクロール（ラベル幅も加味）
   useEffect(() => {
     if (!scrollRef.current || dayList.length === 0) return;
 
@@ -711,7 +785,6 @@ function GanttView({ tasks }: { tasks: Task[] }) {
 
   return (
     <div className="flex flex-col gap-2 h-full">
-      {/* 背景少し濃いめに */}
       <div
         ref={scrollRef}
         className="flex-1 overflow-x-auto rounded-lg"
@@ -749,12 +822,10 @@ function GanttView({ tasks }: { tasks: Task[] }) {
                 className="grid"
                 style={{ gridTemplateColumns: columnTemplate }}
               >
-                {/* 左ラベル */}
                 <div className="px-3 py-3 text-sm text-[#5C3B23] whitespace-nowrap">
                   {row.label}
                 </div>
 
-                {/* 日付セル */}
                 {dayList.map((day, idx) => {
                   const dateKey =
                     day.getFullYear() +
@@ -776,7 +847,6 @@ function GanttView({ tasks }: { tasks: Task[] }) {
                         (striped ? "bg-[#FAF1DD]" : "bg-[#F3E0C3]")
                       }
                     >
-                      {/* ガイド線：1px・薄めに */}
                       <div className="absolute left-0 right-0 top-1/2 border-t border-[#B58A5C]" />
 
                       <div className="relative flex justify-center items-center h-11">
@@ -790,8 +860,6 @@ function GanttView({ tasks }: { tasks: Task[] }) {
               </div>
             );
           })}
-
-          {/* ★ 一番下のバーは削除済み */}
         </div>
       </div>
     </div>
@@ -801,14 +869,13 @@ function GanttView({ tasks }: { tasks: Task[] }) {
 function GanttDotWithTooltip({ task }: { task: Task }) {
   const statusColor =
     task.status === "完了"
-      ? "bg-[#1C7C3B]" // グリーン
+      ? "bg-[#1C7C3B]"
       : task.status === "進行中"
-        ? "bg-[#0071A9]" // ブルー
-        : "bg-[#C4C4C4]"; // グレー（未着手）
+        ? "bg-[#0071A9]"
+        : "bg-[#C4C4C4]";
 
   return (
     <div className="relative group">
-      {/* 〇：大きめ＋線の少し下に */}
       <div
         className={
           "w-4 h-4 rounded-full border border-white shadow cursor-pointer " +
@@ -817,7 +884,6 @@ function GanttDotWithTooltip({ task }: { task: Task }) {
         style={{ marginTop: "3px" }}
       />
 
-      {/* 吹き出し */}
       <div className="pointer-events-none invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute z-20 top-6 left-1/2 -translate-x-1/2">
         <div className="bg-[#F5E9D7] text-[#5C3B23] text-[11px] rounded-lg shadow-lg px-3 py-2 w-56">
           <div className="font-semibold mb-1">{task.title}</div>
@@ -859,18 +925,15 @@ function TaskListView({ tasks }: { tasks: Task[] }) {
     );
   };
 
-  // 担当者一覧（ユニーク）
   const owners = Array.from(
     new Set(localTasks.map((t) => t.owner).filter(Boolean))
   );
 
-  // フィルタ後のタスク
   const filteredTasks =
     ownerFilter === "ALL"
       ? localTasks
       : localTasks.filter((t) => t.owner === ownerFilter);
 
-  // ページング（フィルタ後の件数で計算）
   const totalPages = Math.max(1, Math.ceil(filteredTasks.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
 
@@ -883,9 +946,7 @@ function TaskListView({ tasks }: { tasks: Task[] }) {
   const canNext = safePage < totalPages - 1;
 
   return (
-    // ★ 進捗状況と同じ “pt-4 + gap” に寄せる
     <div className="h-full flex flex-col gap-3 pt-4">
-      {/* 見出し行（ProgressView と同じ SectionHeading 構成） */}
       <div className="flex items-center justify-between">
         <SectionHeading>今週のクエスト達成状況</SectionHeading>
         <p className="text-xs text-gray-500">
@@ -893,7 +954,7 @@ function TaskListView({ tasks }: { tasks: Task[] }) {
         </p>
       </div>
 
-      {/* ★ 見出し直下：担当者絞り込みボタン */}
+      {/* 担当者絞り込み */}
       <div className="relative">
         <button
           type="button"
@@ -958,7 +1019,6 @@ function TaskListView({ tasks }: { tasks: Task[] }) {
             />
           ))}
 
-          {/* 6枚固定の空き枠 */}
           {Array.from({ length: Math.max(0, PAGE_SIZE - pageTasks.length) }).map(
             (_, i) => (
               <div key={`empty-${i}`} className="opacity-0 select-none">
@@ -1036,25 +1096,22 @@ function TaskCard({
   task: Task;
   onToggle: () => void;
 }) {
-  // 背景：通常 / 完了
   const bgSrc =
     task.status === "完了"
       ? "/images/Subtract (2).png"
       : "/images/Subtract.png";
 
-  // 遅延判定（完了以外 & 期限超過）
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const due = new Date(task.due);
   due.setHours(0, 0, 0, 0);
   const isDelayed = task.status !== "完了" && due.getTime() < today.getTime();
 
-  // 右上ラベル（Group19/20/21）
   const topRightLabelSrc = isDelayed
-    ? "/images/Group 19.png" // 遅延
+    ? "/images/Group 19.png"
     : task.status === "未着手"
-      ? "/images/Group 20.png" // 未完了
-      : "/images/Group 21.png"; // 順調（進行中 or 完了でもOKならここ）
+      ? "/images/Group 20.png"
+      : "/images/Group 21.png";
 
   return (
     <button
@@ -1062,24 +1119,19 @@ function TaskCard({
       onClick={onToggle}
       className="relative h-[150px] w-full text-left"
     >
-      {/* 背景 */}
       <Image src={bgSrc} alt="task card" fill className="object-fill" />
 
       <div className="absolute right-5 top-[-7] w-17 h-17">
         <Image src={topRightLabelSrc} alt="label" fill className="object-contain" />
       </div>
 
-      {/* 内容 */}
       <div className="absolute inset-0 px-5 py-4 flex flex-col">
-        {/* 題名 */}
         <div className="pr-12 text-[13px] font-semibold text-[#5C3B23] line-clamp-2">
           {task.title}
         </div>
 
-        {/* 題名下の下線 */}
         <div className="mt-1 border-b border-[#C9A57A]" />
 
-        {/* 担当 */}
         <div className="mt-3 flex items-center gap-2">
           <span className="text-[11px] text-[#5C3B23]">担当</span>
           <span className="inline-flex items-center h-5 px-3 rounded-full bg-white/90 border border-[#C9A57A] text-[11px] text-[#5C3B23]">
@@ -1087,15 +1139,12 @@ function TaskCard({
           </span>
         </div>
 
-        {/* 期限 */}
         <div className="mt-2 text-[11px] text-[#5C3B23]">
           期限 <span className="ml-2">{task.due}</span>
         </div>
 
-        {/* 下段に状態（文字）を出したいならここに追加できるけど、不要とのことなので無し */}
         <div className="mt-auto" />
 
-        {/* 完了スタンプ */}
         {task.status === "完了" && (
           <div className="absolute right-1 top-6 w-28 h-28 rotate-[10deg]">
             <Image
