@@ -121,12 +121,8 @@ export default function BoardPage() {
     );
   };
 
+  // データ取得用のuseEffect
   useEffect(() => {
-    const el = partyScrollRef.current;
-    if (!el) return;
-
-    
-
     const fetchQuests = async () => {
       const db = getFirebaseFirestore();
 
@@ -245,7 +241,18 @@ const recommendedLevel = Math.min(99, Math.max(1, Math.round(durationDays / 3)))
 
       }
 
-      // 3. setQuests の実行
+      // 3. ソート: ステータス順（参加中→募集中）、同じステータス内は経過日数が多い順
+      const statusOrder: Record<BoardQuestStatus, number> = {
+        "参加中": 0,
+        "募集中": 1,
+      };
+      combinedQuests.sort((a, b) => {
+        const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+        if (statusDiff !== 0) return statusDiff;
+        return b.durationDays - a.durationDays; // 経過日数が多い順
+      });
+
+      // 4. setQuests の実行
     setQuests(combinedQuests);
     if (combinedQuests.length > 0 && !selectedId) {
       setSelectedId(combinedQuests[0].id);
@@ -254,6 +261,13 @@ const recommendedLevel = Math.min(99, Math.max(1, Math.round(durationDays / 3)))
     return combinedQuests;
 };
     fetchQuests();
+  }, []);
+
+  // スクロール矢印表示用のuseEffect（ローディング完了後に実行）
+  useEffect(() => {
+    const el = partyScrollRef.current;
+    if (!el) return;
+
     const check = () => {
       setShowPartyArrow(el.scrollWidth > el.clientWidth + 1);
     };
@@ -261,7 +275,7 @@ const recommendedLevel = Math.min(99, Math.max(1, Math.round(durationDays / 3)))
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
-  }, []);
+  }, [loading, selectedId]);
 
   if (loading) {
     return (
@@ -310,7 +324,7 @@ const recommendedLevel = Math.min(99, Math.max(1, Math.round(durationDays / 3)))
           <h2 className="text-lg font-semibold mb-4 text-white">募集クエスト</h2>
 
           <div className="space-y-4 flex-1 overflow-y-auto pr-1">
-            {quests.map((quest) => {
+            {quests.map((quest, index) => {
               const isActive = quest.id === selectedId;
 
               const titleClass =
@@ -321,7 +335,7 @@ const recommendedLevel = Math.min(99, Math.max(1, Math.round(durationDays / 3)))
 
               return (
                 <button
-                  key={quest.id}
+                  key={`${quest.id}-${index}`}
                   type="button"
                   onClick={() => setSelectedId(quest.id)}
                   className="relative w-full h-28 text-left"

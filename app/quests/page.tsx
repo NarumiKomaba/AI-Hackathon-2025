@@ -140,6 +140,18 @@ export default function QuestManagementPage() {
           };
         });
 
+        // ソート: ステータス順（進行中→未着手→期限切れ）、同じステータス内は経過日数が多い順
+        const statusOrder: Record<QuestStatus, number> = {
+          "進行中": 0,
+          "未着手": 1,
+          "期限切れ": 2,
+        };
+        fetchedQuests.sort((a, b) => {
+          const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+          if (statusDiff !== 0) return statusDiff;
+          return b.elapsedDays - a.elapsedDays; // 経過日数が多い順
+        });
+
         if (cancelled) return;
         setQuests(fetchedQuests);
         if (fetchedQuests.length > 0) {
@@ -429,7 +441,7 @@ export default function QuestManagementPage() {
         </aside>
 
         {/* 右：見出し＋タブ＋内容＋提出ボタン */}
-        <section className="flex-1 flex flex-col">
+        <section className="flex-1 flex flex-col min-w-0">
           {/* 見出しボード */}
           <div className="relative h-20 mb-4 shrink-0">
             <Image
@@ -450,7 +462,7 @@ export default function QuestManagementPage() {
             </div>
           </div>
 
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col min-w-0">
             {/* タブ行 */}
             <div className="flex items-end gap-2 px-8 pt-3 pb-0">
               <TabButton
@@ -471,7 +483,7 @@ export default function QuestManagementPage() {
             </div>
 
             {/* コンテンツ */}
-            <div className="px-8 pt-0 pb-6 bg-[#F7F1E3] mt-[-7px] h-[490px]">
+            <div className="px-8 pt-0 pb-6 bg-[#F7F1E3] mt-[-7px] h-[490px] overflow-hidden">
               {activeTab === "progress" && (
                 <div className="h-full overflow-y-auto pr-1">
                   <ProgressView
@@ -711,16 +723,27 @@ const LABEL_COLUMN_WIDTH = 220;
 function GanttView({ tasks }: { tasks: Task[] }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  const parsedTasks = tasks.map((t) => ({
-    ...t,
-    dueDate: new Date(t.due),
-  }));
+  // 有効な日付のタスクのみフィルタリング
+  const parsedTasks = tasks
+    .map((t) => {
+      const dueDate = new Date(t.due);
+      return {
+        ...t,
+        dueDate,
+        isValidDate: !isNaN(dueDate.getTime()),
+      };
+    })
+    .filter((t) => t.isValidDate);
 
   const dayList: Date[] = (() => {
     if (parsedTasks.length === 0) return [];
 
-    const projectMinTs = Math.min(...parsedTasks.map((t) => t.dueDate.getTime()));
-    const projectMaxTs = Math.max(...parsedTasks.map((t) => t.dueDate.getTime()));
+    const timestamps = parsedTasks.map((t) => t.dueDate.getTime());
+    const projectMinTs = Math.min(...timestamps);
+    const projectMaxTs = Math.max(...timestamps);
+
+    // NaNチェック
+    if (isNaN(projectMinTs) || isNaN(projectMaxTs)) return [];
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -733,6 +756,15 @@ function GanttView({ tasks }: { tasks: Task[] }) {
 
     const minDate = new Date(minTs);
     const maxDate = new Date(maxTs);
+
+    // 表示期間が長すぎる場合は制限（最大120日）
+    const maxDays = 120;
+    const daysDiff = Math.floor((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysDiff > maxDays) {
+      // 今日を中心に前後60日を表示
+      minDate.setTime(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+      maxDate.setTime(today.getTime() + 90 * 24 * 60 * 60 * 1000);
+    }
 
     const arr: Date[] = [];
     const cursor = new Date(minDate);
@@ -772,10 +804,12 @@ function GanttView({ tasks }: { tasks: Task[] }) {
     }
   }, [dayList.length]);
 
-  if (tasks.length === 0) {
+  if (tasks.length === 0 || dayList.length === 0) {
     return (
       <div className="h-full pt-4 text-xs text-gray-500">
-        このクエストにはスケジュール対象のタスクがまだありません。
+        {tasks.length === 0
+          ? "このクエストにはスケジュール対象のタスクがまだありません。"
+          : "有効な期限が設定されているタスクがありません。"}
       </div>
     );
   }
@@ -784,12 +818,12 @@ function GanttView({ tasks }: { tasks: Task[] }) {
   const formatDayLabel = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
 
   return (
-    <div className="flex flex-col gap-2 h-full">
+    <div className="flex flex-col gap-2 h-full pt-4 w-full max-w-full">
       <div
         ref={scrollRef}
-        className="flex-1 overflow-x-auto rounded-lg"
+        className="flex-1 overflow-x-auto overflow-y-auto rounded-lg"
       >
-        <div className="min-w-full">
+        <div className="inline-block min-w-max">
           {/* 日付ヘッダー */}
           <div
             className="grid text-[11px]"
