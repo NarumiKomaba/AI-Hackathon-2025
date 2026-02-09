@@ -166,21 +166,32 @@ export async function GET(): Promise<Response> {
     }
 
     // ===== 2. party_members =====
+    // ★ 現実的に掛け持ちするメンバーあり
+    //   田中: hr-talent + internal-dx-chatbot (AIに強いので兼務)
+    //   佐藤: hr-talent + customer-portal (フロントに強いので兼務)
+    //   山本: hr-talent + customer-portal (バックエンド支援)
+    //   高橋: factory-iot + internal-dx-chatbot (インフラ系兼務)
+    //   鈴木: factory-iot + hr-talent (PM支援)
     const partyMembers = [
-      // hr-talent-system
+      // hr-talent-system（4名 + 兼務1名）
       { projectId: "hr-talent-system", role: "勇者", member_name: "田中（あなた）", member_id: "tanaka" },
       { projectId: "hr-talent-system", role: "戦士", member_name: "佐藤", member_id: "sato" },
       { projectId: "hr-talent-system", role: "魔法使い", member_name: "山本", member_id: "yamamoto" },
       { projectId: "hr-talent-system", role: "僧侶", member_name: "渡辺", member_id: "watanabe" },
-      // customer-portal
+      { projectId: "hr-talent-system", role: "盗賊", member_name: "鈴木", member_id: "suzuki" },
+      // customer-portal（3名 + 兼務1名）
       { projectId: "customer-portal", role: "勇者", member_name: "佐藤（あなた）", member_id: "sato" },
       { projectId: "customer-portal", role: "戦士", member_name: "伊藤", member_id: "ito" },
       { projectId: "customer-portal", role: "魔法使い", member_name: "小林", member_id: "kobayashi" },
-      // factory-iot
+      { projectId: "customer-portal", role: "僧侶", member_name: "山本", member_id: "yamamoto" },
+      // factory-iot（4名）
       { projectId: "factory-iot", role: "勇者", member_name: "鈴木（あなた）", member_id: "suzuki" },
       { projectId: "factory-iot", role: "戦士", member_name: "高橋", member_id: "takahashi" },
       { projectId: "factory-iot", role: "魔法使い", member_name: "中村", member_id: "nakamura" },
       { projectId: "factory-iot", role: "僧侶", member_name: "加藤", member_id: "kato" },
+      // internal-dx-chatbot（兼務メンバーで構成）
+      { projectId: "internal-dx-chatbot", role: "勇者", member_name: "高橋（あなた）", member_id: "takahashi" },
+      { projectId: "internal-dx-chatbot", role: "魔法使い", member_name: "田中", member_id: "tanaka" },
     ];
 
     // seed用のparty_membersだけ確認（projectIdで判定）
@@ -302,6 +313,22 @@ export async function GET(): Promise<Response> {
         plan_end_date: fromDate(new Date("2026-03-20")),
       },
 
+      // ★ 鈴木が兼務で参加（hr-talent-system）
+      {
+        projectId: "hr-talent-system",
+        title: "非機能要件・性能テスト計画",
+        number: "8", subSystem: "人材管理", phase: "テスト",
+        category: "品質管理", feature: "性能テスト",
+        description: "8,000人規模の同時アクセスを想定した負荷テスト計画の策定。鈴木がIoTプロジェクトの知見を活かして支援",
+        status: "未着手", progress: 0,
+        assignee: "鈴木", owner: "鈴木",
+        due: "2026-03-10",
+        parentId: "test", parentLabel: "テスト",
+        source_file_name: "seed-data-v2", imported_at: TS(),
+        plan_start_date: fromDate(new Date("2026-02-20")),
+        plan_end_date: fromDate(new Date("2026-03-10")),
+      },
+
       // ---- customer-portal ----
       {
         projectId: "customer-portal",
@@ -372,6 +399,21 @@ export async function GET(): Promise<Response> {
         source_file_name: "seed-data-v2", imported_at: TS(),
         plan_start_date: fromDate(new Date("2026-02-15")),
         plan_end_date: fromDate(new Date("2026-03-31")),
+      },
+      // ★ 山本が兼務で参加（customer-portal）
+      {
+        projectId: "customer-portal",
+        title: "バックエンドAPI開発",
+        number: "7", subSystem: "API", phase: "実装",
+        category: "バックエンド", feature: "REST API",
+        description: "FAQ・チケット・契約情報のREST API開発。山本がhr-talentのDB経験を活かしてバックエンド支援",
+        status: "進行中", progress: 45,
+        assignee: "山本", owner: "山本",
+        due: "2026-02-28",
+        parentId: "impl", parentLabel: "フロントエンド開発",
+        source_file_name: "seed-data-v2", imported_at: TS(),
+        plan_start_date: fromDate(new Date("2026-01-06")),
+        plan_end_date: fromDate(new Date("2026-02-28")),
       },
       {
         projectId: "customer-portal",
@@ -489,6 +531,21 @@ export async function GET(): Promise<Response> {
         plan_start_date: fromDate(new Date("2026-01-06")),
         plan_end_date: fromDate(new Date("2026-03-31")),
       },
+      // ★ 田中が兼務で参加（internal-dx-chatbot）
+      {
+        projectId: "internal-dx-chatbot",
+        title: "LLMプロンプト設計",
+        number: "3", subSystem: "AI", phase: "設計",
+        category: "AI設計", feature: "プロンプト設計",
+        description: "社内問い合わせ対応用のプロンプトテンプレート設計。田中がhr-talentのAI経験を活かして支援",
+        status: "進行中", progress: 15,
+        assignee: "田中", owner: "田中",
+        due: "2026-04-30",
+        parentId: "impl", parentLabel: "実装",
+        source_file_name: "seed-data-v2", imported_at: TS(),
+        plan_start_date: fromDate(new Date("2026-02-01")),
+        plan_end_date: fromDate(new Date("2026-04-30")),
+      },
       {
         projectId: "internal-dx-chatbot",
         title: "RAGパイプライン構築",
@@ -496,7 +553,7 @@ export async function GET(): Promise<Response> {
         category: "AI基盤", feature: "RAG構築",
         description: "Vertex AI Search + Gemini によるRAGパイプラインの構築",
         status: "未着手", progress: 0,
-        assignee: "未選択", owner: "未選択",
+        assignee: "田中", owner: "田中",
         due: "2026-05-15",
         parentId: "impl", parentLabel: "実装",
         source_file_name: "seed-data-v2", imported_at: TS(),
