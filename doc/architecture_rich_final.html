@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Quest Architecture - Final Blue</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/devicon.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #ffffff;
+            /* UPDATED: White Background */
+            background-image:
+                linear-gradient(rgba(30, 58, 138, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 58, 138, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+            min-height: 100vh;
+            color: #1e3a8a;
+            /* Blue 900 */
+        }
+
+        .glass-blue {
+            background: #1e3a8a;
+            /* Solid Dark Blue */
+            border: 1px solid rgba(147, 197, 253, 0.5);
+            box-shadow: 0 20px 40px -5px rgba(30, 58, 138, 0.3);
+            border-radius: 1rem;
+        }
+
+        .section-card {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(30, 64, 175, 0.2));
+            border: 1px solid rgba(96, 165, 250, 0.3);
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .phase-badge {
+            background: #2563eb;
+            /* Blue 600 */
+            color: white;
+            box-shadow: 0 0 15px rgba(37, 99, 235, 0.5);
+        }
+
+        .arrow-down {
+            width: 2px;
+            height: 40px;
+            background: linear-gradient(to bottom, #60a5fa, #fbbf24);
+            position: relative;
+            margin: 0 auto;
+        }
+
+        .arrow-down::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: -4px;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 8px solid #fbbf24;
+        }
+
+        .glow-text {
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        .agent-core {
+            background: linear-gradient(135deg, #1e40af, #1e3a8a);
+            border: 1px solid #60a5fa;
+            box-shadow: 0 0 30px rgba(37, 99, 235, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .agent-core::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(96, 165, 250, 0.2) 0%, transparent 60%);
+            animation: rotate 10s linear infinite;
+        }
+
+        @keyframes rotate {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="p-8 flex flex-col items-center">
+
+    <!-- Header -->
+    <header class="text-center mb-10 relative z-10">
+        <div
+            class="inline-block px-3 py-1 mb-2 text-xs font-bold tracking-wider text-blue-200 uppercase bg-blue-800/50 rounded-full border border-blue-600/50">
+            System Architecture
+        </div>
+        <h1 class="text-5xl font-black mb-2 tracking-tight text-blue-900 glow-text">
+            Project Quest
+        </h1>
+        <p class="text-blue-600 tracking-wide font-light">Enterprise-Grade Hackathon Solution with AI Integration</p>
+    </header>
+
+    <!-- Phase 1 -->
+    <section class="w-full max-w-6xl relative mb-4">
+        <!-- Connector Line Left -->
+        <div class="absolute -left-4 top-0 bottom-0 w-1 bg-blue-600/50 rounded-full"></div>
+
+        <div class="pl-8 mb-4">
+            <h2 class="text-xl font-bold text-blue-900 flex items-center gap-3">
+                <span
+                    class="w-8 h-8 rounded-lg phase-badge flex items-center justify-center text-sm font-black">01</span>
+                Phase 1: Human-Led Development
+                <span class="text-sm font-normal text-blue-700 ml-2 border-l border-blue-500 pl-3">Initial
+                    Release</span>
+            </h2>
+        </div>
+
+        <div class="glass-blue rounded-xl p-8 grid grid-cols-1 md:grid-cols-2 gap-8 relative overflow-hidden">
+            <!-- AI Team -->
+            <div class="flex flex-col gap-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <i class="devicon-google-plain colored text-xl"></i>
+                    <h3 class="font-bold text-blue-100">AI Prompt Team</h3>
+                </div>
+                <div class="section-card rounded-xl p-5 flex flex-col gap-4">
+                    <div class="flex items-center gap-4">
+                        <i class="devicon-googlecloud-plain colored text-3xl"></i>
+                        <div class="flex-1">
+                            <div class="text-sm font-bold text-white">Google Cloud Platform</div>
+                            <div class="text-xs text-blue-300">Infrastructure Base</div>
+                        </div>
+                    </div>
+                    <div class="flex justify-center text-blue-500 text-lg">↓</div>
+                    <div class="flex items-center gap-4">
+                        <div
+                            class="w-10 h-10 rounded bg-blue-600 flex items-center justify-center text-white font-bold text-xs shadow-lg">
+                            AI</div>
+                        <div class="flex-1">
+                            <div class="text-sm font-bold text-white">Vertex AI Studio</div>
+                            <div class="text-xs text-blue-300">Prompt Tuning & Eval</div>
+                        </div>
+                    </div>
+                    <div class="flex justify-center text-blue-500 text-lg">↓</div>
+                    <div class="flex justify-between items-center bg-blue-900/40 p-3 rounded border border-blue-700">
+                        <div class="flex items-center gap-2">
+                            <i class="devicon-jupyter-plain text-orange-400"></i>
+                            <span class="text-sm text-blue-100">Colab Notebooks</span>
+                        </div>
+                        <span class="text-[10px] bg-blue-800 px-2 py-1 rounded text-blue-200 border border-blue-600">📝
+                            System Prompts</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- App Team -->
+            <div class="flex flex-col gap-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xl">📱</span>
+                    <h3 class="font-bold text-blue-100">App Dev Team</h3>
+                </div>
+                <div class="section-card rounded-xl p-5 flex flex-col gap-4 h-full relative">
+                    <!-- Asset Flow -->
+                    <div class="flex gap-2 mb-2">
+                        <div class="flex-1 bg-blue-900/30 p-2 rounded border border-blue-700/50 text-center">
+                            <div class="text-[10px] text-blue-300 mb-1 uppercase tracking-wider">Asset Generation</div>
+                            <div class="flex justify-center gap-3 text-lg">
+                                <span title="Stable Diffusion">🎨</span>
+                                <span title="NanoBanana">🍌</span>
+                            </div>
+                        </div>
+                        <div class="flex-1 bg-blue-900/30 p-2 rounded border border-blue-700/50 text-center">
+                            <div class="text-[10px] text-blue-300 mb-1 uppercase tracking-wider">Coding Partner</div>
+                            <div class="flex justify-center items-center gap-2">
+                                <i class="devicon-googlecloud-plain colored text-xl"></i>
+                                <span class="text-[10px] text-white font-bold">Vertex AI</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-center text-blue-500 text-lg">↓</div>
+
+                    <!-- Main App Stack -->
+                    <div
+                        class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-black/20 p-4 rounded-lg border border-blue-800 relative">
+                        <div
+                            class="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[9px] px-2 py-0.5 rounded-full font-bold shadow-lg whitespace-nowrap border border-blue-400">
+                            ✨ High AI Affinity Stack
+                        </div>
+
+                        <div class="text-center">
+                            <div class="flex justify-center gap-2 mb-2">
+                                <i class="devicon-nextjs-original-wordmark text-3xl filter invert"></i>
+                                <i class="devicon-tailwindcss-original colored text-3xl"></i>
+                                <i class="devicon-typescript-plain colored text-3xl"></i>
+                            </div>
+                            <div class="text-xs font-bold text-blue-100">Modern Web</div>
+                            <div class="text-[9px] text-blue-300">Next.js + Tailwind</div>
+                        </div>
+
+                        <div class="text-blue-500 text-sm">⇄</div>
+
+                        <div class="text-center">
+                            <i class="devicon-firebase-plain colored text-3xl mb-2 block"></i>
+                            <div class="text-xs font-bold text-blue-100">Firebase</div>
+                            <div class="text-[9px] text-blue-300">Backend as a Service</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Merge Point -->
+            <div class="md:col-span-2 mt-2 pt-4 border-t border-blue-500/30 flex flex-col items-center">
+                <div
+                    class="px-6 py-3 bg-gradient-to-r from-orange-500/20 to-yellow-500/20 rounded-full border border-yellow-500/50 flex items-center gap-4 shadow-[0_0_20px_rgba(234,179,8,0.2)]">
+                    <span class="text-2xl">🤝</span>
+                    <div>
+                        <div class="text-sm font-bold text-yellow-100">Phase 1 Complete</div>
+                        <div class="text-[10px] text-yellow-300 font-mono">STATUS: BETA_RELEASE_READY</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Transition -->
+    <div class="h-16 flex items-center justify-center my-2">
+        <div class="arrow-down"></div>
+    </div>
+
+    <!-- Phase 2 -->
+    <section class="w-full max-w-6xl relative">
+        <!-- Connector Line Left -->
+        <div class="absolute -left-4 top-0 bottom-0 w-1 bg-gradient-to-b from-yellow-500 to-indigo-500 rounded-full">
+        </div>
+
+        <div class="pl-8 mb-4">
+            <h2 class="text-2xl font-bold text-blue-900 flex items-center gap-3">
+                <span
+                    class="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center text-lg font-black shadow-lg shadow-indigo-500/50">02</span>
+                Phase 2: AI Agent Enhancement
+                <span class="text-sm font-normal text-indigo-700 ml-2 animate-pulse">✨ Antigravity Framework</span>
+            </h2>
+        </div>
+
+        <div class="glass-blue rounded-xl p-8 relative overflow-hidden border-indigo-500/40">
+            <!-- Background Glow -->
+            <div
+                class="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 pointer-events-none">
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-[200px_1fr_200px] gap-8 items-center relative z-10">
+                <!-- Input: Beta App -->
+                <div class="text-center opacity-80">
+                    <div class="mb-3 text-4xl drop-shadow-lg">🚀</div>
+                    <div class="font-bold text-blue-200">Beta App</div>
+                    <div class="text-[10px] text-blue-400 font-mono mt-1">SOURCE_INPUT</div>
+                </div>
+
+                <!-- Core: Antigravity -->
+                <div
+                    class="agent-core rounded-2xl p-8 text-center w-full max-w-sm mx-auto transform hover:scale-105 transition-transform duration-500">
+                    <div class="relative z-10">
+                        <div class="mb-4 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)] flex justify-center">
+                            <i class="devicon-google-plain colored text-6xl"></i>
+                        </div>
+                        <h3 class="text-3xl font-black text-white mb-2 tracking-tight">Antigravity</h3>
+                        <p
+                            class="text-[10px] text-blue-200 uppercase tracking-[0.2em] mb-8 border-b border-blue-400/30 pb-4 mx-8">
+                            Autonomous Coding Agent
+                        </p>
+
+                        <!-- Agent Tasks -->
+                        <div class="grid grid-cols-3 gap-2">
+                            <div
+                                class="bg-blue-950/50 p-2 rounded border border-blue-700 hover:border-green-400 transition-colors group">
+                                <i
+                                    class="devicon-playwright-plain colored text-xl mb-1 block group-hover:scale-110 transition-transform"></i>
+                                <div class="text-[9px] text-green-100 font-bold">E2E Test</div>
+                            </div>
+                            <div
+                                class="bg-blue-950/50 p-2 rounded border border-blue-700 hover:border-blue-400 transition-colors group">
+                                <span class="text-xl mb-1 block group-hover:scale-110 transition-transform">📄</span>
+                                <div class="text-[9px] text-blue-100 font-bold">Design Doc</div>
+                            </div>
+                            <div
+                                class="bg-blue-950/50 p-2 rounded border border-blue-700 hover:border-yellow-400 transition-colors group">
+                                <span class="text-xl mb-1 block group-hover:scale-110 transition-transform">⚡</span>
+                                <div class="text-[9px] text-yellow-100 font-bold">Refactor</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Output: Final App -->
+                <div class="text-center">
+                    <div class="relative inline-block group">
+                        <div
+                            class="absolute inset-0 bg-yellow-400/40 blur-xl rounded-full animate-pulse group-hover:bg-yellow-400/60 transition-colors">
+                        </div>
+                        <span class="text-7xl relative z-10 drop-shadow-xl">🏆</span>
+                    </div>
+                    <div class="mt-6 font-bold text-yellow-300 text-xl tracking-tight">Final App</div>
+                    <div class="text-[10px] text-yellow-500/80 font-mono mt-1">PRODUCTION_READY</div>
+                </div>
+            </div>
+
+            <!-- Arrows -->
+            <div class="absolute top-1/2 left-[200px] -translate-y-1/2 text-blue-500/50 text-4xl hidden md:block">➔
+            </div>
+            <div class="absolute top-1/2 right-[200px] -translate-y-1/2 text-blue-500/50 text-4xl hidden md:block">➔
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="mt-16 text-center text-blue-900/50 text-[10px] font-mono tracking-widest uppercase">
+        <p>System Generated by Google Antigravity // Project Quest</p>
+    </footer>
+
+</body>
+
+</html>
