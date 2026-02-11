@@ -22,6 +22,8 @@ interface SlideFrameProps {
   isEditMode?: boolean;
   onUpdateText?: OnUpdateText;
   onUpdateArray?: OnUpdateArray;
+  slides?: SlideContent[];
+  setSlides?: (slides: SlideContent[]) => void;
 }
 
 interface RenderSlideContentProps {
@@ -30,6 +32,8 @@ interface RenderSlideContentProps {
   isEditMode?: boolean;
   onUpdateText?: OnUpdateText;
   onUpdateArray?: OnUpdateArray;
+  slides?: SlideContent[];
+  setSlides?: (slides: SlideContent[]) => void;
 }
 
 interface IssueTableProps {
@@ -263,7 +267,19 @@ export default function ReportPreviewPage() {
         {/* 1. 表紙 (Cover) */}
         <SlideFrame key="cover" index={-2} theme={theme} slide={{ title: "表紙", content_type: "cover", body: { projectName: projectId } }} />
 
+
         {/* 2. 目次 (TOC) - 5行2段(10項目)を超えるなら自動改ページ */}
+        {isEditMode && (
+          <div className="mx-auto w-[1280px] mb-4 px-4 py-3 bg-blue-600/90 backdrop-blur-sm rounded-lg border border-blue-400 print:hidden">
+            <div className="flex items-center gap-3 text-white">
+              <span className="text-2xl">ℹ️</span>
+              <div className="text-sm font-bold">
+                <div>目次は本文のスライドタイトルから自動生成されます。</div>
+                <div className="text-xs text-blue-100 mt-1">目次項目を編集すると、対応するスライドのタイトルも自動的に更新されます。</div>
+              </div>
+            </div>
+          </div>
+        )}
         {(() => {
           const items = slides.map(s => s.title);
           const limit = 10;
@@ -319,6 +335,8 @@ export default function ReportPreviewPage() {
               isEditMode={isEditMode}
               onUpdateText={(path: string, val: string) => handleUpdateText(index, path, val)}
               onUpdateArray={(path: string, idx: number, val: any) => handleUpdateArray(index, path, idx, val)}
+              slides={slides}
+              setSlides={setSlides}
             />
           </div>
         ))}
@@ -327,6 +345,26 @@ export default function ReportPreviewPage() {
       <style jsx global>{`
         @media print {
           .print\:hidden { display: none !important; }
+          
+          /* 編集モードのスタイルを無効化 */
+          [contentEditable="true"] {
+            outline: none !important;
+            background: transparent !important;
+            cursor: default !important;
+          }
+          
+          /* 見切れ検知の赤枠を無効化 */
+          .slide-container {
+            border: 2px solid rgba(255, 255, 255, 0.05) !important;
+            box-shadow: none !important;
+          }
+          
+          /* アニメーション・トランジションを無効化 */
+          *, *::before, *::after {
+            transition: none !important;
+            animation: none !important;
+          }
+          
           html, body {
             margin: 0 !important;
             padding: 0 !important;
@@ -354,7 +392,7 @@ export default function ReportPreviewPage() {
   );
 }
 
-function SlideFrame({ index, theme, slide, isEditMode, onUpdateText, onUpdateArray }: SlideFrameProps) {
+function SlideFrame({ index, theme, slide, isEditMode, onUpdateText, onUpdateArray, slides, setSlides }: SlideFrameProps) {
   const isCover = slide.content_type === 'cover';
   const isToc = slide.content_type === 'toc';
   const isRpg = theme === 'rpg';
@@ -419,17 +457,17 @@ function SlideFrame({ index, theme, slide, isEditMode, onUpdateText, onUpdateArr
                     {isToc ? "TOC" : `P.${String(index + 1).padStart(2, '0')}`}
                   </div>
                   <h1
-                    contentEditable={isEditMode && !isToc} suppressContentEditableWarning
+                    contentEditable={isEditMode} suppressContentEditableWarning
                     onBlur={(e) => onUpdateText?.('title', e.currentTarget.textContent || "")}
-                    className={`text-4xl font-bold bg-gradient-to-r from-white via-white to-[#D4A373] bg-clip-text text-transparent italic ${isEditMode && !isToc ? 'outline-dashed outline-1 outline-[#8A4B26] px-2' : ''}`}
+                    className={`text-4xl font-bold bg-gradient-to-r from-white via-white to-[#D4A373] bg-clip-text text-transparent italic ${isEditMode ? 'outline-dashed outline-1 outline-[#8A4B26] px-2' : ''}`}
                   >
-                    {isToc ? "目次 (Adventure Log)" : slide.title}
+                    {slide.title}
                   </h1>
                 </div>
                 <div className="text-[#8A4B26] font-bold text-lg tracking-widest opacity-80 uppercase font-mono">Quest Progress Report</div>
               </div>
               <div id={`slide-content-${index}`} className="flex-1 overflow-hidden print:overflow-visible">
-                <RenderSlideContent theme={theme} slide={slide} isEditMode={isEditMode} onUpdateText={onUpdateText} onUpdateArray={onUpdateArray} />
+                <RenderSlideContent theme={theme} slide={slide} isEditMode={isEditMode} onUpdateText={onUpdateText} onUpdateArray={onUpdateArray} slides={slides} setSlides={setSlides} />
               </div>
             </>
           )}
@@ -478,11 +516,11 @@ function SlideFrame({ index, theme, slide, isEditMode, onUpdateText, onUpdateArr
                     {isToc ? "TOC" : `P.${String(index + 1).padStart(2, '0')}`}
                   </div>
                   <h1
-                    contentEditable={isEditMode && !isToc} suppressContentEditableWarning
+                    contentEditable={isEditMode} suppressContentEditableWarning
                     onBlur={(e) => onUpdateText?.('title', e.currentTarget.textContent || "")}
-                    className={`text-4xl font-bold text-slate-800 ${isEditMode && !isToc ? 'outline-dashed outline-1 outline-blue-400 px-2' : ''}`}
+                    className={`text-4xl font-bold text-slate-800 ${isEditMode ? 'outline-dashed outline-1 outline-blue-400 px-2' : ''}`}
                   >
-                    {isToc ? "本日の報告内容" : slide.title}
+                    {slide.title}
                   </h1>
                 </div>
                 <div className="text-right">
@@ -491,7 +529,7 @@ function SlideFrame({ index, theme, slide, isEditMode, onUpdateText, onUpdateArr
                 </div>
               </div>
               <div id={`slide-content-${index}`} className="flex-1 overflow-hidden print:overflow-visible text-slate-700">
-                <RenderSlideContent theme={theme} slide={slide} isEditMode={isEditMode} onUpdateText={onUpdateText} onUpdateArray={onUpdateArray} />
+                <RenderSlideContent theme={theme} slide={slide} isEditMode={isEditMode} onUpdateText={onUpdateText} onUpdateArray={onUpdateArray} slides={slides} setSlides={setSlides} />
               </div>
             </>
           )}
@@ -508,7 +546,7 @@ function SlideFrame({ index, theme, slide, isEditMode, onUpdateText, onUpdateArr
   }
 }
 
-function RenderSlideContent({ theme, slide, isEditMode, onUpdateText, onUpdateArray }: RenderSlideContentProps) {
+function RenderSlideContent({ theme, slide, isEditMode, onUpdateText, onUpdateArray, slides, setSlides }: RenderSlideContentProps) {
   const { content_type, body } = slide;
   const isRpg = theme === 'rpg';
 
@@ -536,9 +574,23 @@ function RenderSlideContent({ theme, slide, isEditMode, onUpdateText, onUpdateAr
                 <span className={`${isRpg ? 'text-[#8A4B26]' : 'text-[#005AAA]'} font-bold font-mono text-2xl`}>
                   {String(startIndex + i + 1).padStart(2, '0')}
                 </span>
-                <span className={`text-2xl font-bold ${isRpg ? 'text-white/80' : 'text-slate-800'}`}>
+                <div
+                  contentEditable={isEditMode}
+                  suppressContentEditableWarning
+                  onBlur={(e) => {
+                    // 目次項目を編集したら、対応するスライドのタイトルも更新
+                    if (!slides || !setSlides) return;
+                    const actualSlideIndex = startIndex + i;
+                    const newSlides = [...slides];
+                    if (newSlides[actualSlideIndex]) {
+                      newSlides[actualSlideIndex].title = e.currentTarget.textContent || "";
+                      setSlides(newSlides);
+                    }
+                  }}
+                  className={`text-2xl font-bold ${isRpg ? 'text-white/80' : 'text-slate-800'} ${isEditMode ? 'outline-dashed outline-1 outline-[#8A4B26]/50 bg-white/5 px-1 cursor-text' : ''}`}
+                >
                   {item}
-                </span>
+                </div>
               </div>
             ))}
           </div>
