@@ -60,7 +60,12 @@ export async function POST(req: Request) {
       type: string;
     });
 
-    const fileParts: any[] = [];
+    const fileParts: {
+      fileData: {
+        fileUri: string;
+        mimeType: string;
+      };
+    }[] = [];
 
     // PDF を Vertex AI 用に GCS に保存しなおす
     for (const f of sourceFiles) {

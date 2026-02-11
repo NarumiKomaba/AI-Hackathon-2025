@@ -97,26 +97,18 @@ function buildPmoWeeklySlidesPrompt(params: {
 
 # 重要注意事項（厳守）
 1. **JSONの構文エラー防止**: 改行コードは必ず ""\\n"" とエスケープしてください。
-2. **文字数制限と改行**:
-   - スライド内の各テキスト文（summary_textやdescriptionなど）は、**1行あたり最大120文字**としてください。
-   - 120文字を超える場合は、適切な位置に ""\\n"" を挿入して改行してください。
-   - 適切な改行が無い場合はペナルティを与えます。
-3. **課題スライドの分割**:
-   - 「課題状況」セクションでは、「課題状況まとめ」「課題状況詳細」の2パターン作成します。
-   - 「課題状況まとめ」は1枚作成してください
-   - 「課題状況詳細」は**重要な課題1つにつきスライドを1枚作成**してください。
-   - 重要な課題が3つあれば、課題用スライドが3枚生成されます（1枚にまとめないこと）。
-   - 複数課題を1枚にまとめた場合はペナルティを与えます。
-4. **注意事項の遵守*:
-   - 注意事項に従わない場合はペナルティを与えます。
-   - 後述する分析・生成ルールに従わない場合はペナルティを与えます。
-5. **chartsは必須*:
-  - charts を空配列にしてはいけない。
-  - charts フィールドを省略してはいけない。
-  - 数値データが不足・不明な場合は、論理的に妥当な仮定値を生成してよい。
-    その場合：
-    - values は 0〜100 または工数・金額として自然な整数
-    - labels は 1〜5 件
+2. **表紙・目次の生成禁止**: 
+   - 表紙(Cover)と目次(TOC)はシステムが自動生成するため、**絶対に出力しないでください。**
+   - 1枚目のスライドは必ず「プロジェクト総評」から開始してください。
+3. **課題スライドの徹底分割**:
+   - 「課題状況詳細(issue_text)」は、必ず**1枚につき1つの課題のみ**を記述してください。
+   - \`table_rows\` に複数の課題を並べないでください。1つの重大な課題を1枚かけて深く分析すること。
+4. **要素数の最適化**:
+   - charts を含むスライドでは、グラフの数は**最大3つ**に絞ってください。
+   - 4つ以上あるとレイアウトが崩れるため、重要度の高いものから順に採用してください。
+5. **文字数と視認性**:
+   - \`summary_text\` や \`forecast_comment\` は、150〜200文字程度に要約してください。
+   - UIで自動改行されるため、文中での手動の ""\\n"" 挿入は最小限（箇条書き程度）で構いません。
 
 # 入力データ
 1. [WBSデータ]:
@@ -134,10 +126,11 @@ ${budget_data}
 # 分析・生成ルール
 1. 情報の統合:
    - 単にデータを並べず、WBS遅延に対し「Issueが原因」「チャットの仕様齟齬が背景」等の因果関係を分析して記述すること
-2. ページ構成の動的調整:
-   - 遅延タスクや重要課題が多い場合は無理に1枚に収めず、同じタイプのスライドを複数出力してページ分割すること
-   - 逆に特記すべき事項がない項目はスキップ可
-   - 想定枚数: 8〜12枚程度
+2. ページ構成の徹底的な分割:
+   - **「1枚に詰め込む」ことは最大の禁忌です。**
+   - 重要な課題は必ず「1課題につき1スライド」作成すること。3つあれば3枚作ってください。
+   - コスト状況や実績も、項目が多くなり1枚のフォントサイズが小さくなるくらいなら、迷わず「コスト状況(1)」「コスト状況(2)」のようにスライドを分けてください。
+   - 想定枚数は制限せず、10〜15枚程度になっても構いません。
 
 # 出力フォーマット（JSON Schema）
 以下のJSON構造を厳守してください。ルートは配列です。
@@ -149,12 +142,12 @@ ${budget_data}
     "title": "プロジェクト総評",
     "content_type": "text_summary",
     "body": {
-      "status_label": "🔴 危険 / 🟡 注意 / 🟢 順調 のいずれか",
-      "summary_text": "全体状況の要約文章（150文字程度）。なぜそのステータスなのかの核心を書く。120文字を超えたら\\\\nで改行。",
+      "status_label": "🔴 危機一髪 / 🟡 要警戒 / 🟢 冒険は順調 のいずれか",
+      "summary_text": "勇者の視点での総括（150文字程度）。現状の戦況（進捗）をドラマチックかつ客観的に要約。120文字を超えたら\\\\nで改行。",
       "key_points": [
-        "進捗: XX% (遅延/順調)",
-        "コスト: 予算内/超過見込み",
-        "品質: 注意/危険/順調"
+        "現在のレベル: 進捗率 XX%",
+        "パーティの士気: コスト状況のメタファ",
+        "立ちはだかる強敵: 最大の懸念事項"
       ]
     }
   },
@@ -266,9 +259,11 @@ export async function generateWeeklySlidesJson(prompt: string) {
 /* ================================
    Route
 ================================ */
-export async function POST() {
+export async function POST(req: Request) {
   try {
-    const projectId = "dummy_projectId";
+    const { note, projectId: reqPid } = await req.json() as { note?: string, projectId?: string };
+    const projectId = reqPid || "core-system";
+
     const db = initFirestoreAdmin();
 
     const [wbs_items, issue_items, chat_messages, profit_items] =
@@ -287,6 +282,38 @@ export async function POST() {
     });
 
     const { slides } = await generateWeeklySlidesJson(prompt);
+
+    // ✅ progress_report に保存する
+    const reportJson = JSON.stringify({ slides });
+
+    // 指定された projectId に合致するドキュメントを探して更新、なければ新規作成
+    const statusQuery = await db.collection("project_status").where("project_id", "==", projectId).limit(1).get();
+
+    if (!statusQuery.empty) {
+      const docId = statusQuery.docs[0].id;
+      await db.collection("project_status").doc(docId).update({
+        progress_report: reportJson,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      // projectId でも検索（揺れ対応）
+      const statusQuery2 = await db.collection("project_status").where("projectId", "==", projectId).limit(1).get();
+      if (!statusQuery2.empty) {
+        const docId = statusQuery2.docs[0].id;
+        await db.collection("project_status").doc(docId).update({
+          progress_report: reportJson,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      } else {
+        // 新規作成
+        await db.collection("project_status").add({
+          project_id: projectId,
+          progress_report: reportJson,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    }
 
     return NextResponse.json({
       projectId,
