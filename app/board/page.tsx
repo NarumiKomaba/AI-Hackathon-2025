@@ -15,8 +15,7 @@ import {
   serverTimestamp,
   where,
 } from "firebase/firestore";
-import { ReactCompilerRuntime } from "next/dist/server/route-modules/app-page/vendored/rsc/entrypoints";
-import { Timestamp } from "firebase-admin/firestore";
+import { Timestamp } from "firebase/firestore";
 
 type BoardQuestStatus = "参加中" | "募集中";
 
@@ -85,125 +84,17 @@ const partySlotsTemplate: PartySlot[] =  [
       { id: "slot-6", role: "吟遊詩人", name: "募集中", filled: false },
     ];
 
-
-const MOCK_QUESTS: BoardQuest[] = [
-  {
-    id: "core-system",
-    title: "基幹システム刷新 編",
-    recommendedLevel: 36,
-    durationDays: 120,
-    status: "参加中",
-    objective: "基幹システムの刷新により業務効率と保守性を向上させる。",
-    conditions: [
-      "要件定義書・基本設計書の確定と承認を完了する",
-      "主要画面・バッチの結合テストを完了する",
-      "移行リハーサルを実施し、致命的な不具合が残っていない状態にする",
-    ],
-    deliverables: [
-      "要件定義書・基本設計書一式（古文書スタイルの魔導書）",
-      "総合テスト結果レポート（試験のログ）",
-      "移行計画書・手順書（転送の儀式書）",
-    ],
-    summary:
-      "老朽化した基幹システムを刷新し、周辺システムとのインタフェースを整理する大規模クエスト。ステークホルダーも多く、要件調整とスケジュール管理が難航している。",
-    rewards: [
-      "課長との豪華お食事券（焼肉コース）",
-      "来週分の定例会議 1 回免除チケット",
-      "チームメンバーと打ち上げ飲み会（会社負担を期待）",
-    ],
-    expGains: ["PM EXP +3", "インフラ構築 EXP +2", "オンプレ LLM EXP +1"],
-    partySlots: [
-      {
-        id: "slot-1",
-        role: "勇者",
-        name: "駒場（あなた）",
-        isYou: true,
-        filled: true,
-      },
-      { id: "slot-2", role: "戦士", name: "大和", filled: true },
-      { id: "slot-3", role: "魔法使い", name: "小﨑", filled: true },
-      { id: "slot-4", role: "僧侶", name: "募集中", filled: false },
-      { id: "slot-5", role: "盗賊", name: "募集中", filled: false },
-      { id: "slot-6", role: "吟遊詩人", name: "募集中", filled: false },
-    ],
-  },
-  {
-    id: "sales-ui",
-    title: "営業支援アプリ UI 改修",
-    recommendedLevel: 18,
-    durationDays: 45,
-    status: "募集中",
-    objective: "営業担当者の UX を改善し、入力ストレスを軽減する。",
-    conditions: [
-      "既存画面の課題洗い出しを完了する",
-      "プロトタイプ UI を 3 パターン作成する",
-      "ユーザビリティテストを実施し改善案をまとめる",
-    ],
-    deliverables: [
-      "課題整理シート",
-      "新 UI ワイヤーフレーム一式",
-      "ユーザビリティテスト結果レポート",
-    ],
-    summary:
-      "営業支援アプリの画面を刷新し、入力しやすく見やすい UI に生まれ変わらせるクエスト。現場ヒアリングと素早いプロトタイピングが鍵となる。",
-    rewards: [
-      "営業部からの感謝のメッセージカード",
-      "チーム内 UX 勉強会での LT 枠",
-    ],
-    expGains: ["UI 設計 EXP +2", "ユーザビリティ EXP +2"],
-    partySlots: [
-      { id: "slot-1", role: "勇者", name: "募集中", filled: false },
-      { id: "slot-2", role: "デザイナー", name: "募集中", filled: false },
-      { id: "slot-3", role: "フロントエンド", name: "募集中", filled: false },
-      { id: "slot-4", role: "営業代表", name: "募集中", filled: false },
-      { id: "slot-5", role: "QA", name: "募集中", filled: false },
-      { id: "slot-6", role: "スクライバー", name: "募集中", filled: false },
-    ],
-  },
-  {
-    id: "onprem-llm",
-    title: "オンプレ LLM 検証クエスト",
-    recommendedLevel: 24,
-    durationDays: 60,
-    status: "募集中",
-    objective: "オンプレ環境で LLM を安全かつ高性能に運用できるか検証する。",
-    conditions: [
-      "GPU サーバ環境の構築を完了する",
-      "会話要約・翻訳など主要ユースケースの評価を完了する",
-      "ガードレール要件を整理し PoC レポートにまとめる",
-    ],
-    deliverables: [
-      "検証計画書・観点一覧",
-      "評価レポート（精度・性能・コスト）",
-      "ガードレール仕様書（封印の書）",
-    ],
-    summary:
-      "オンプレミスの GPU クラスタ上で複数 LLM を比較検証するクエスト。性能チューニングとセキュリティ要件の両立が試される。",
-    rewards: ["GPU サーバ見学ツアー", "技術ブログ執筆チャンス"],
-    expGains: ["LLM 運用 EXP +3", "セキュリティ設計 EXP +1"],
-    partySlots: [
-      { id: "slot-1", role: "勇者", name: "募集中", filled: false },
-      { id: "slot-2", role: "インフラ", name: "募集中", filled: false },
-      { id: "slot-3", role: "アプリ担当", name: "募集中", filled: false },
-      { id: "slot-4", role: "検証リーダー", name: "募集中", filled: false },
-      { id: "slot-5", role: "記録係", name: "募集中", filled: false },
-      { id: "slot-6", role: "おやつ係", name: "募集中", filled: false },
-    ],
-  },
-];
-
 export default function BoardPage() {
   const router = useRouter();
-  const [quests, setQuests] = useState<BoardQuest[]>(MOCK_QUESTS);
-  const [selectedId, setSelectedId] = useState<string>(MOCK_QUESTS[0].id);
-  const selected = quests.find((q) => q.id === selectedId)!;
+  const [quests, setQuests] = useState<BoardQuest[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const selected = quests.find((q) => q.id === selectedId);
   const partyScrollRef = useRef<HTMLDivElement | null>(null);
   const [showPartyArrow, setShowPartyArrow] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
 
   const handleJoin = () => {
+    if (!selected) return;
     setQuests((prev) =>
       prev.map((q) => {
         if (q.id !== selected.id) return q;
@@ -230,12 +121,8 @@ export default function BoardPage() {
     );
   };
 
+  // データ取得用のuseEffect
   useEffect(() => {
-    const el = partyScrollRef.current;
-    if (!el) return;
-
-    
-
     const fetchQuests = async () => {
       const db = getFirebaseFirestore();
 
@@ -254,14 +141,10 @@ export default function BoardPage() {
       );
 
       const col_party = collection(db, "party_members");
-      // const combinedQuests = MOCK_QUESTS;
-      // ★ 修正点1: MOCK_QUESTSをベースに新しい配列を作成し、重複を防ぐ
-      const combinedQuests: BoardQuest[] = [...MOCK_QUESTS];
+      const combinedQuests: BoardQuest[] = [];
 
       // 2. 各クエストに対してパーティメンバーを取得し、データを結合する
       for (const questDoc of firestoreQuests) {
-        // すでに combinedQuests に同じ ID が存在する場合はスキップ（重複ガード）
-        if (combinedQuests.some(q => q.id === questDoc.id)) continue;
         // a. 該当クエストのパーティメンバーを取得
         const q_party = query(col_party, where("projectId", "==", questDoc.id));
         
@@ -294,7 +177,7 @@ export default function BoardPage() {
                     id: member.member_id, // DBからのユニークIDを使用
                     name: member.member_name,
                     filled: true,
-                    isYou: true,
+                    isYou: member.role === "勇者", // 勇者ロールのみ「あなた」
                 });
             } else {
                 // メンバーが見つからなかった場合、テンプレートの空きスロットをそのまま使用
@@ -334,8 +217,8 @@ const durationDays = Math.max(
   ) + 1
 );
 
-// 仮のレコメンドレベル
-const recommendedLevel = Math.round(Math.random() * 100);
+// 経過日数からレコメンドレベルを算出（日数が長いほど高い）
+const recommendedLevel = Math.min(99, Math.max(1, Math.round(durationDays / 3)));
 
         // c. 結合された BoardQuest オブジェクトの作成
         const finalQuest: BoardQuest = {
@@ -358,13 +241,33 @@ const recommendedLevel = Math.round(Math.random() * 100);
 
       }
 
-      // 3. setQuests の実行
-    // ここで、この関数を呼び出すコンポーネントの setQuests を呼び出す必要があります。
-    setQuests([]);
+      // 3. ソート: ステータス順（参加中→募集中）、同じステータス内は経過日数が多い順
+      const statusOrder: Record<BoardQuestStatus, number> = {
+        "参加中": 0,
+        "募集中": 1,
+      };
+      combinedQuests.sort((a, b) => {
+        const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+        if (statusDiff !== 0) return statusDiff;
+        return b.durationDays - a.durationDays; // 経過日数が多い順
+      });
+
+      // 4. setQuests の実行
     setQuests(combinedQuests);
+    if (combinedQuests.length > 0 && !selectedId) {
+      setSelectedId(combinedQuests[0].id);
+    }
+    setLoading(false);
     return combinedQuests;
 };
     fetchQuests();
+  }, []);
+
+  // スクロール矢印表示用のuseEffect（ローディング完了後に実行）
+  useEffect(() => {
+    const el = partyScrollRef.current;
+    if (!el) return;
+
     const check = () => {
       setShowPartyArrow(el.scrollWidth > el.clientWidth + 1);
     };
@@ -372,7 +275,34 @@ const recommendedLevel = Math.round(Math.random() * 100);
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
-  }, []);
+  }, [loading, selectedId]);
+
+  if (loading) {
+    return (
+      <ProjectQuestLayout>
+        <div className="h-full flex items-center justify-center text-[#5C3B23] text-lg">
+          クエスト情報を読み込み中...
+        </div>
+      </ProjectQuestLayout>
+    );
+  }
+
+  if (!selected) {
+    return (
+      <ProjectQuestLayout>
+        <div className="h-full flex flex-col items-center justify-center gap-4">
+          <p className="text-[#5C3B23] text-lg">まだクエストが登録されていません</p>
+          <button
+            type="button"
+            onClick={() => router.push("/quest/new")}
+            className="px-6 py-3 bg-teal-700 text-white rounded-full text-sm font-semibold hover:bg-teal-800 transition"
+          >
+            新しいクエストを作成する
+          </button>
+        </div>
+      </ProjectQuestLayout>
+    );
+  }
 
   return (
     <ProjectQuestLayout>
@@ -394,7 +324,7 @@ const recommendedLevel = Math.round(Math.random() * 100);
           <h2 className="text-lg font-semibold mb-4 text-white">募集クエスト</h2>
 
           <div className="space-y-4 flex-1 overflow-y-auto pr-1">
-            {quests.map((quest) => {
+            {quests.map((quest, index) => {
               const isActive = quest.id === selectedId;
 
               const titleClass =
@@ -405,7 +335,7 @@ const recommendedLevel = Math.round(Math.random() * 100);
 
               return (
                 <button
-                  key={quest.id}
+                  key={`${quest.id}-${index}`}
                   type="button"
                   onClick={() => setSelectedId(quest.id)}
                   className="relative w-full h-28 text-left"

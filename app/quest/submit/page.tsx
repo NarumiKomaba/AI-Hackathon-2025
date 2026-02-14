@@ -5,13 +5,10 @@ import ProjectQuestLayout from "@/components/layout/ProjectQuestLayout";
 import { useSearchParams, useRouter } from "next/navigation";
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 import * as XLSX from 'xlsx';
-import { setMaxIdleHTTPParsers } from "http";
 import {
-  getFirebaseStorage,
   getFirebaseFirestore,
 } from "@/lib/firebaseClient";
-import { collection, addDoc, serverTimestamp, writeBatch, doc } from "firebase/firestore";
-import { Timestamp } from "firebase-admin/firestore";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, Timestamp } from "firebase/firestore";
 
 type Quest = {
   id: string;
@@ -105,9 +102,12 @@ function GuildSubmitPageInner() {
       return;
     }
 
+    if (!confirm("ファイル名：「" + fileName + "」を提出しますか？")) {
+      return;
+    }
+
     setUploading(true);
     setMessage("");
-    alert("ファイル名：「" + fileName + "」を提出しますか？");
 
     try {
 
@@ -143,7 +143,7 @@ function GuildSubmitPageInner() {
         alert(`${file.name} の取り込みに成功しました`);
       }
     } catch (err) {
-      console.error("handleCreateQuestDraft error:", err);
+      console.error("handleSubmit error:", err);
       setMessage("資料のアップロードに失敗しました...");
     } finally {
       setUploading(false);

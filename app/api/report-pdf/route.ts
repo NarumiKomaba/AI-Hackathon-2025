@@ -41,7 +41,7 @@ export async function POST(req: Request) {
         await browser.close();
 
         // PDFをレスポンスとして返す
-        return new NextResponse(pdfBuffer, {
+        return new NextResponse(new Uint8Array(pdfBuffer), {
             status: 200,
             headers: {
                 "Content-Type": "application/pdf",
