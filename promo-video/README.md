@@ -1,54 +1,53 @@
-# Remotion video
+# Project Quest Demo Video (Remotion)
 
-<p align="center">
-  <a href="https://github.com/remotion-dev/logo">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://github.com/remotion-dev/logo/raw/main/animated-logo-banner-dark.apng">
-      <img alt="Animated Remotion Logo" src="https://github.com/remotion-dev/logo/raw/main/animated-logo-banner-light.gif">
-    </picture>
-  </a>
-</p>
+Gemini 1.5 Flash を搭載した次世代プロジェクト管理ツール **"Project Quest"** のプロモーション動画作成プロジェクトです。
 
-Welcome to your Remotion project!
+## 🎬 デモ動画
+YouTubeで完成した動画をご覧いただけます：
+[**【Project Quest】デモ動画はこちら**](ここにYouTubeのURLをペーストしてね💕)
 
-## Commands
+---
 
-**Install Dependencies**
+## 🛠️ プロジェクトの構成
 
-```console
-npm i
+- **Remotion**: Reactを使用してプログラムベースで動画を編集。
+- **Google Cloud Text-to-Speech**: ナレーション音声の自動生成。
+- **FFmpeg (NVENC)**: GPUを使用した爆速レンダリング。
+
+### 📁 主要なディレクトリ
+
+- `src/`: 動画の構成、タイミング、字幕、レイアウトのコード。
+- `scripts/`: ナレーション生成用スクリプト (`generate_narration.js`)。
+- `public/`: 素材（BGM、ナレーション、録画済み動画ベース）。
+
+---
+
+## 🚀 セットアップと実行
+
+### 1. 依存関係のインストール
+```bash
+npm install
 ```
 
-**Start Preview**
+### 2. ナレーションの生成 (Optional)
+Google Cloudのサービスアカウントキー (`service-account.json`) を配置し、以下のスクリプトを実行するとナレーションを自動生成します。
+```bash
+node scripts/generate_narration.js
+```
 
-```console
+### 3. プレビューの起動
+```bash
 npm run dev
 ```
 
-**Render video**
-
-```console
-npx remotion render
+### 4. レンダリング (GPU使用)
+```bash
+npx remotion render FinalDemo --ffmpeg-override="-c:v h264_nvenc -pix_fmt yuv420p"
 ```
+※標準レンダリングは `npx remotion render FinalDemo` です。
 
-**Upgrade Remotion**
+---
 
-```console
-npx remotion upgrade
-```
-
-## Docs
-
-Get started with Remotion by reading the [fundamentals page](https://www.remotion.dev/docs/the-fundamentals).
-
-## Help
-
-We provide help on our [Discord server](https://discord.gg/6VzzNDwUwV).
-
-## Issues
-
-Found an issue with Remotion? [File an issue here](https://github.com/remotion-dev/remotion/issues/new).
-
-## License
-
-Note that for some entities a company license is needed. [Read the terms here](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).
+## ⚠️ 注意事項
+リポジトリを軽量に保つため、ベースとなる大きなソース動画 (`public/demo-video.mp4`) は Git 管理から除外されています。
+自分でビルド・レンダリングを行う場合は、該当の場所に動画ファイルを配置してください。

@@ -226,14 +226,19 @@ async function generateCharacterStatus(prompt: string): Promise<string> {
     },
   };
 
-  const resultUnknown: unknown = await model.generateContent(req);
-  const result = resultUnknown as VertexResponseShape;
+  try {
+    const resultUnknown: unknown = await model.generateContent(req);
+    const result = resultUnknown as VertexResponseShape;
 
-  const cand = result.response.candidates?.[0];
-  const parts = cand?.content?.parts ?? [];
-  const text = parts.map(partText).join("").trim();
+    const cand = result.response.candidates?.[0];
+    const parts = cand?.content?.parts ?? [];
+    const text = parts.map(partText).join("").trim();
 
-  return text;
+    return text;
+  } catch (e) {
+    console.error("Vertex AI Generation Error:", e);
+    throw e;
+  }
 }
 
 /* ================================
@@ -294,29 +299,30 @@ export async function POST(req: Request): Promise<Response> {
       issueText: toSummaryLines(issueItems, "ISSUE"),
     });
 
-    const rawText = await generateCharacterStatus(prompt);
-
-    // JSON パース
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.error("character-status: JSON extraction failed, raw:", rawText);
-      return NextResponse.json({
-        projectId,
-        status: getFallbackStatus(projectName),
-        source: "fallback",
-      });
+    let status;
+    try {
+      const rawText = await generateCharacterStatus(prompt);
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("JSON not found in AI response");
+      }
+      status = JSON.parse(jsonMatch[0]);
+    } catch (aiError) {
+      console.warn("Falling back to default status due to AI error:", aiError);
+      status = getFallbackStatus(projectName);
     }
-
-    const status = JSON.parse(jsonMatch[0]);
 
     return NextResponse.json({
       projectId,
       status,
-      source: "ai",
+      source: status.name === "駒場（あなた）" && status.level === 1 ? "fallback" : "ai",
     });
   } catch (e: unknown) {
-    console.error("character-status error:", e);
-    const message = e instanceof Error ? e.message : "unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("character-status route absolute error:", e);
+    // ここまで来ちゃった場合も、最低限エラーレスポンスは維持
+    return NextResponse.json(
+      { error: "Fatal error in status generation" },
+      { status: 500 }
+    );
   }
 }
