@@ -44,45 +44,45 @@ type BoardQuest = {
 
 // Firestoreから取得する際の型（結合前）
 interface FirestoreQuestDoc {
-    id: string; 
-    name: string;
-    // recommendedLevel: number; // BoardQuestに必要なフィールドを追加
-    // durationDays: number;     // BoardQuestに必要なフィールドを追加
-    status: BoardQuestStatus; // BoardQuestに必要なフィールドを追加
-    purpose: string;        // BoardQuestに必要なフィールドを追加
-    success_conditions: string[];     // BoardQuestに必要なフィールドを追加
-    deliverables: string[];   // BoardQuestに必要なフィールドを追加
-    overview: string;          // BoardQuestに必要なフィールドを追加
-    rewards: string[];        // BoardQuestに必要なフィールドを追加
-    experience_gains: string[];       // BoardQuestに必要なフィールドを追加
-    start_date: Timestamp;
-    // ★ 修正点: テンプレートフィールドを明示的に定義
-    partySlotsTemplate?: PartySlot[]; 
+  id: string;
+  name: string;
+  // recommendedLevel: number; // BoardQuestに必要なフィールドを追加
+  // durationDays: number;     // BoardQuestに必要なフィールドを追加
+  status: BoardQuestStatus; // BoardQuestに必要なフィールドを追加
+  purpose: string;        // BoardQuestに必要なフィールドを追加
+  success_conditions: string[];     // BoardQuestに必要なフィールドを追加
+  deliverables: string[];   // BoardQuestに必要なフィールドを追加
+  overview: string;          // BoardQuestに必要なフィールドを追加
+  rewards: string[];        // BoardQuestに必要なフィールドを追加
+  experience_gains: string[];       // BoardQuestに必要なフィールドを追加
+  start_date: Timestamp;
+  // ★ 修正点: テンプレートフィールドを明示的に定義
+  partySlotsTemplate?: PartySlot[];
 }
 
 interface FirestorePartyMemberDoc {
-    member_id: string; // メンバーIDまたはスロットID
-    projectId: string;
-    role: string;
-    member_name: string;
-    // isYou: boolean;
+  member_id: string; // メンバーIDまたはスロットID
+  projectId: string;
+  role: string;
+  member_name: string;
+  // isYou: boolean;
 }
 
 // 既存のパーティスロットのテンプレート（FirestoreQuestDoc に含まれていると仮定）をベースにする
-const partySlotsTemplate: PartySlot[] =  [
-      {
-        id: "slot-1",
-        role: "勇者",
-        name: "駒場（あなた）",
-        isYou: true,
-        filled: true,
-      },
-      { id: "slot-2", role: "戦士", name: "大和", filled: true },
-      { id: "slot-3", role: "魔法使い", name: "小﨑", filled: true },
-      { id: "slot-4", role: "僧侶", name: "募集中", filled: false },
-      { id: "slot-5", role: "盗賊", name: "募集中", filled: false },
-      { id: "slot-6", role: "吟遊詩人", name: "募集中", filled: false },
-    ];
+const partySlotsTemplate: PartySlot[] = [
+  {
+    id: "slot-1",
+    role: "勇者",
+    name: "駒場（あなた）",
+    isYou: true,
+    filled: true,
+  },
+  { id: "slot-2", role: "戦士", name: "大和", filled: true },
+  { id: "slot-3", role: "魔法使い", name: "小﨑", filled: true },
+  { id: "slot-4", role: "僧侶", name: "募集中", filled: false },
+  { id: "slot-5", role: "盗賊", name: "募集中", filled: false },
+  { id: "slot-6", role: "吟遊詩人", name: "募集中", filled: false },
+];
 
 export default function BoardPage() {
   const router = useRouter();
@@ -128,17 +128,26 @@ export default function BoardPage() {
 
       // 1. testProjects (クエスト) の取得
       // ドキュメントIDを取得するため、map内で doc.id も取得します。
-      const firestoreQuests: FirestoreQuestDoc[] = await getDocs(
+      const rawQuests = await getDocs(
         collection(db, "testProjects")
       ).then((snapshot) =>
         snapshot.docs.map((doc) => {
-          // Doc IDをデータに含める
-           return {
-            id: doc.id, 
+          return {
+            id: doc.id,
             ...(doc.data() as Omit<FirestoreQuestDoc, 'id'>)
           };
         })
       );
+
+      // ★ 修正点: クエスト名（name）が同じものを重複排除
+      const seenNames = new Set();
+      const firestoreQuests: FirestoreQuestDoc[] = [];
+      for (const q of rawQuests) {
+        if (!seenNames.has(q.name)) {
+          seenNames.add(q.name);
+          firestoreQuests.push(q);
+        }
+      }
 
       const col_party = collection(db, "party_members");
       const combinedQuests: BoardQuest[] = [];
@@ -147,46 +156,46 @@ export default function BoardPage() {
       for (const questDoc of firestoreQuests) {
         // a. 該当クエストのパーティメンバーを取得
         const q_party = query(col_party, where("projectId", "==", questDoc.id));
-        
+
         // party_members の取得と変換
         const partyMemberDocs: FirestorePartyMemberDoc[] = await getDocs(q_party).then(
-            (snapshot) =>
-                snapshot.docs.map((doc) => {
-                    // ドキュメントIDをメンバーIDとして使用
-                    return {
-                        id: doc.id,
-                        ...(doc.data() as Omit<FirestorePartyMemberDoc, 'id'>),
-                    };
-                }) as FirestorePartyMemberDoc[]
+          (snapshot) =>
+            snapshot.docs.map((doc) => {
+              // ドキュメントIDをメンバーIDとして使用
+              return {
+                id: doc.id,
+                ...(doc.data() as Omit<FirestorePartyMemberDoc, 'id'>),
+              };
+            }) as FirestorePartyMemberDoc[]
         );
 
         // b. PartySlot の構築ロジック（ここが重要）
         const finalPartySlots: PartySlot[] = [];
 
-        
+
         // テンプレートスロットをコピーし、取得したメンバーデータで上書きする
         partySlotsTemplate.forEach(templateSlot => {
-            const member = partyMemberDocs.find(
-                (m) => m.role === templateSlot.role
-            ); // 例: roleで紐付ける
+          const member = partyMemberDocs.find(
+            (m) => m.role === templateSlot.role
+          ); // 例: roleで紐付ける
 
-            if (member) {
-                // メンバーが見つかった場合、そのメンバー情報でスロットを埋める
-                finalPartySlots.push({
-                    ...templateSlot,
-                    id: member.member_id, // DBからのユニークIDを使用
-                    name: member.member_name,
-                    filled: true,
-                    isYou: member.role === "勇者", // 勇者ロールのみ「あなた」
-                });
-            } else {
-                // メンバーが見つからなかった場合、テンプレートの空きスロットをそのまま使用
-                finalPartySlots.push({
-                    ...templateSlot,
-                    filled: false,
-                    name: "募集中"
-                });
-            }
+          if (member) {
+            // メンバーが見つかった場合、そのメンバー情報でスロットを埋める
+            finalPartySlots.push({
+              ...templateSlot,
+              id: member.member_id, // DBからのユニークIDを使用
+              name: member.member_name,
+              filled: true,
+              isYou: member.role === "勇者", // 勇者ロールのみ「あなた」
+            });
+          } else {
+            // メンバーが見つからなかった場合、テンプレートの空きスロットをそのまま使用
+            finalPartySlots.push({
+              ...templateSlot,
+              filled: false,
+              name: "募集中"
+            });
+          }
         });
 
         // // 以下格納用データ（仮）
@@ -200,41 +209,41 @@ export default function BoardPage() {
         // const recommendedLevel = Math.round(Math.random()*100);
 
         // Firestore Timestamp → Date
-const startDate: Date = questDoc.start_date.toDate();
+        const startDate: Date = questDoc.start_date.toDate();
 
-// 現在日時
-const nowDate: Date = new Date();
+        // 現在日時
+        const nowDate: Date = new Date();
 
-// 日付を 00:00:00 に正規化
-startDate.setHours(0, 0, 0, 0);
-nowDate.setHours(0, 0, 0, 0);
+        // 日付を 00:00:00 に正規化
+        startDate.setHours(0, 0, 0, 0);
+        nowDate.setHours(0, 0, 0, 0);
 
-// 経過日数（開始日を1日目としてカウント）
-const durationDays = Math.max(
-  1,
-  Math.floor(
-    (nowDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
-  ) + 1
-);
+        // 経過日数（開始日を1日目としてカウント）
+        const durationDays = Math.max(
+          1,
+          Math.floor(
+            (nowDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+          ) + 1
+        );
 
-// 経過日数からレコメンドレベルを算出（日数が長いほど高い）
-const recommendedLevel = Math.min(99, Math.max(1, Math.round(durationDays / 3)));
+        // 経過日数からレコメンドレベルを算出（日数が長いほど高い）
+        const recommendedLevel = Math.min(99, Math.max(1, Math.round(durationDays / 3)));
 
         // c. 結合された BoardQuest オブジェクトの作成
         const finalQuest: BoardQuest = {
-            id: questDoc.id,
-            title: questDoc.name,
-            recommendedLevel: Number(recommendedLevel),
-            durationDays: Number(durationDays),
-            status: questDoc.status,
-            objective: questDoc.purpose,
-            conditions: questDoc.success_conditions,
-            deliverables: questDoc.deliverables,
-            summary: questDoc.overview,
-            rewards: questDoc.rewards,
-            expGains: questDoc.experience_gains,
-            // BoardQuestの型に合致させるために PartySlot[] を追加
-            partySlots: finalPartySlots,
+          id: questDoc.id,
+          title: questDoc.name,
+          recommendedLevel: Number(recommendedLevel),
+          durationDays: Number(durationDays),
+          status: questDoc.status,
+          objective: questDoc.purpose,
+          conditions: questDoc.success_conditions,
+          deliverables: questDoc.deliverables,
+          summary: questDoc.overview,
+          rewards: questDoc.rewards,
+          expGains: questDoc.experience_gains,
+          // BoardQuestの型に合致させるために PartySlot[] を追加
+          partySlots: finalPartySlots,
         };
 
         combinedQuests.push(finalQuest);
@@ -253,13 +262,13 @@ const recommendedLevel = Math.min(99, Math.max(1, Math.round(durationDays / 3)))
       });
 
       // 4. setQuests の実行
-    setQuests(combinedQuests);
-    if (combinedQuests.length > 0 && !selectedId) {
-      setSelectedId(combinedQuests[0].id);
-    }
-    setLoading(false);
-    return combinedQuests;
-};
+      setQuests(combinedQuests);
+      if (combinedQuests.length > 0 && !selectedId) {
+        setSelectedId(combinedQuests[0].id);
+      }
+      setLoading(false);
+      return combinedQuests;
+    };
     fetchQuests();
   }, []);
 
@@ -307,92 +316,92 @@ const recommendedLevel = Math.min(99, Math.max(1, Math.round(durationDays / 3)))
   return (
     <ProjectQuestLayout>
       <div className="h-full flex gap-6 px-10">
-      {/* 左：募集クエスト一覧（青い枠） */}
-      <aside className="relative w-80 flex-shrink-0 overflow-visible">
-        {/* 青いメニュー背景：上下だけちょっとはみ出させる */}
-        <div className="pointer-events-none absolute top-[-12px] bottom-[-12px] left-[2px] right-[2px]">
-          <Image
-            src="/images/blue-back.png"
-            alt="メニュー背景"
-            fill
-            className="object-fill"
-          />
-        </div>
+        {/* 左：募集クエスト一覧（青い枠） */}
+        <aside className="relative w-80 flex-shrink-0 overflow-visible">
+          {/* 青いメニュー背景：上下だけちょっとはみ出させる */}
+          <div className="pointer-events-none absolute top-[-12px] bottom-[-12px] left-[2px] right-[2px]">
+            <Image
+              src="/images/blue-back.png"
+              alt="メニュー背景"
+              fill
+              className="object-fill"
+            />
+          </div>
 
-        {/* 中身（クエストカード＋追加ボタン） */}
-        <div className="relative z-10 flex flex-col h-full px-6 py-8">
-          <h2 className="text-lg font-semibold mb-4 text-white">募集クエスト</h2>
+          {/* 中身（クエストカード＋追加ボタン） */}
+          <div className="relative z-10 flex flex-col h-full px-6 py-8">
+            <h2 className="text-lg font-semibold mb-4 text-white">募集クエスト</h2>
 
-          <div className="space-y-4 flex-1 overflow-y-auto pr-1">
-            {quests.map((quest, index) => {
-              const isActive = quest.id === selectedId;
+            <div className="space-y-4 flex-1 overflow-y-auto pr-1">
+              {quests.map((quest, index) => {
+                const isActive = quest.id === selectedId;
 
-              const titleClass =
-                "text-sm font-semibold " + (isActive ? "text-white" : "text-gray-900");
+                const titleClass =
+                  "text-sm font-semibold " + (isActive ? "text-white" : "text-gray-900");
 
-              const subClass =
-                "text-[11px] mt-1 " + (isActive ? "text-white/90" : "text-gray-700");
+                const subClass =
+                  "text-[11px] mt-1 " + (isActive ? "text-white/90" : "text-gray-700");
 
-              return (
-                <button
-                  key={`${quest.id}-${index}`}
-                  type="button"
-                  onClick={() => setSelectedId(quest.id)}
-                  className="relative w-full h-28 text-left"
-                >
-                  {/* 背景：選択/非選択で切り替え */}
-                  <Image
-                    src={isActive ? "/images/Group 54.png" : "/images/Group 40.png"}
-                    alt={quest.title}
-                    fill
-                    className="object-fill"
-                  />
+                return (
+                  <button
+                    key={quest.id}
+                    type="button"
+                    onClick={() => setSelectedId(quest.id)}
+                    className="relative w-full h-28 text-left"
+                  >
+                    {/* 背景：選択/非選択で切り替え */}
+                    <Image
+                      src={isActive ? "/images/Group 54.png" : "/images/Group 40.png"}
+                      alt={quest.title}
+                      fill
+                      className="object-fill"
+                    />
 
-                  <div className="absolute inset-0 px-5 py-5 flex flex-col justify-between">
-                    <div>
-                      <div className={titleClass}>{quest.title}</div>
-                      <div className={subClass}>
-                        推奨Lv{quest.recommendedLevel} / 経過{quest.durationDays}日
+                    <div className="absolute inset-0 px-5 py-5 flex flex-col justify-between">
+                      <div>
+                        <div className={titleClass}>{quest.title}</div>
+                        <div className={subClass}>
+                          推奨Lv{quest.recommendedLevel} / 経過{quest.durationDays}日
+                        </div>
+                      </div>
+
+                      {/* ステータス（画像のまま使うならここ） */}
+                      <div className="relative w-24 h-7 mt-1">
+                        <Image
+                          src={
+                            quest.status === "参加中"
+                              ? "/images/Frame 8.png"
+                              : "/images/Frame 19.png"
+                          }
+                          alt={quest.status}
+                          fill
+                          className="object-contain"
+                        />
                       </div>
                     </div>
+                  </button>
+                );
+              })}
 
-                    {/* ステータス（画像のまま使うならここ） */}
-                    <div className="relative w-24 h-7 mt-1">
-                      <Image
-                        src={
-                          quest.status === "参加中"
-                            ? "/images/Frame 8.png"
-                            : "/images/Frame 19.png"
-                        }
-                        alt={quest.status}
-                        fill
-                        className="object-contain"
-                      />
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+            </div>
 
+            {/* 追加ボタン */}
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => router.push("/quest/new")}
+                className="relative w-10 h-10"
+              >
+                <Image
+                  src="/images/Group 18.png"
+                  alt="クエスト追加"
+                  fill
+                  className="object-contain"
+                />
+              </button>
+            </div>
           </div>
-
-          {/* 追加ボタン */}
-          <div className="mt-4 flex justify-center">
-            <button
-              type="button"
-              onClick={() => router.push("/quest/new")}
-              className="relative w-10 h-10"
-            >
-              <Image
-                src="/images/Group 18.png"
-                alt="クエスト追加"
-                fill
-                className="object-contain"
-              />
-            </button>
-          </div>
-        </div>
-      </aside>
+        </aside>
 
         {/* 右：クエスト詳細 */}
         <section className="flex-1 flex flex-col">
@@ -503,11 +512,10 @@ const recommendedLevel = Math.min(99, Math.max(1, Math.round(durationDays / 3)))
               type="button"
               onClick={handleJoin}
               disabled={selected.status === "参加中"}
-              className={`w-64 py-3 rounded-full text-sm font-semibold transition ${
-                selected.status === "参加中"
-                  ? "bg-gray-400 text-white cursor-default"
-                  : "bg-teal-700 text-white hover:bg-teal-800"
-              }`}
+              className={`w-64 py-3 rounded-full text-sm font-semibold transition ${selected.status === "参加中"
+                ? "bg-gray-400 text-white cursor-default"
+                : "bg-teal-700 text-white hover:bg-teal-800"
+                }`}
             >
               {selected.status === "参加中"
                 ? "このクエストに参加中"

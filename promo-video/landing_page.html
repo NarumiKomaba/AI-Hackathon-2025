@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Quest | 次世代プロジェクト管理の攻略</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&family=Noto+Sans+JP:wght@400;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0e14;
+            --card-bg: rgba(23, 28, 41, 0.8);
+            --primary: #6366f1;
+            --secondary: #a855f7;
+            --accent: #22d3ee;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --gold: #fbbf24;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Outfit', 'Noto Sans JP', sans-serif;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* プレミアム・グラデーション背景 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 80% 70%, rgba(168, 85, 247, 0.15) 0%, transparent 40%);
+            z-index: -1;
+        }
+
+        header {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .hero-title {
+            font-size: 5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(to right, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
+        }
+
+        .hero-subtitle {
+            font-size: 1.5rem;
+            color: var(--text-dim);
+            max-width: 800px;
+            margin-bottom: 3rem;
+        }
+
+        .video-container {
+            width: 80%;
+            max-width: 1000px;
+            aspect-ratio: 16 / 9;
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .video-placeholder {
+            color: var(--text-dim);
+            font-size: 1.2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .play-button {
+            width: 80px;
+            height: 80px;
+            background: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        .play-button:hover {
+            transform: scale(1.1);
+        }
+
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 100px 2rem;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+            text-align: center;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 3rem;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            border-color: var(--primary);
+            box-shadow: 0 0 30px rgba(99, 102, 241, 0.2);
+        }
+
+        .card-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--accent);
+        }
+
+        .card-text {
+            color: var(--text-dim);
+        }
+
+        .tech-tag {
+            display: inline-block;
+            padding: 0.2rem 0.8rem;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            border-radius: 100px;
+            font-size: 0.8rem;
+            margin-top: 1.5rem;
+        }
+
+        footer {
+            text-align: center;
+            padding: 50px;
+            color: var(--text-dim);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .pixel {
+            font-family: monospace;
+            color: var(--gold);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 3rem;
+            }
+
+            .hero-subtitle {
+                font-size: 1.1rem;
+            }
+
+            .video-container {
+                width: 95%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <span class="pixel">/// PROJECT INITIALIZED ///</span>
+        <h1 class="hero-title">Project Quest</h1>
+        <p class="hero-subtitle">収集ではなく、意思決定を。Gemini 2.5 FlashとRemotionが贈る、プロジェクト管理の新たな「攻略法」。</p>
+
+        <div class="video-container">
+            <div class="video-placeholder">
+                <div class="play-button">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                        <path d="M8 5v14l11-7z" />
+                    </svg>
+                </div>
+                <span>Watch the Demo Video (YouTube)</span>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <h2 class="section-title">"攻略"を支える3つの柱</h2>
+        <div class="features-grid">
+            <div class="card">
+                <div class="card-icon">⚔️</div>
+                <h3 class="card-title">RPG-Style Dashboard</h3>
+                <p class="card-text">プロジェクトを「クエスト」として再定義。複雑な進捗をRPGのギルド板のような直感的なUIで可視化。自分の成長をステータスとして実感できます。</p>
+                <span class="tech-tag">React / Next.js</span>
+            </div>
+            <div class="card">
+                <div class="card-icon">🏛️</div>
+                <h3 class="card-title">AI Council</h3>
+                <p class="card-text">8人の専門性を持つAIエージェントが、プロジェクトの課題をリアルタイムで議論。あえて対立構造を設けることで、人間の盲点を突く鋭い意見を導き出します。</p>
+                <span class="tech-tag">Gemini 2.5 Flash / Multi-Agent</span>
+            </div>
+            <div class="card">
+                <div class="card-icon">🎬</div>
+                <h3 class="card-title">Remotion Production</h3>
+                <p class="card-text">このデモ動画自体も「コード」で書かれています。Remotionによる1フレーム単位の制御と、Google Cloud TTSによるナレーション自動生成を統合。</p>
+                <span class="tech-tag">Code-driven Video</span>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Project Quest Team. Built with code, driven by AI.</p>
+    </footer>
+
+</body>
+
+</html>
